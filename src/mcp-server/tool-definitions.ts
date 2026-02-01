@@ -1,8 +1,9 @@
 /**
  * MCP Tool definitions for unified CLAWD Wallet
  *
- * All 18 tools:
+ * All 19 tools:
  * - Wallet (5): x402_payment_request, x402_check_balance, x402_get_address, x402_transaction_history, x402_discover_services
+ * - Referral (1): x402_redeem_referral
  * - TAP (4): tap_register_agent, tap_verify_identity, tap_get_status, tap_revoke
  * - Domains (9): clawd_domain_search, clawd_domain_purchase, clawd_domain_confirm, clawd_domain_list, clawd_dns_list, clawd_dns_create, clawd_dns_delete, clawd_domain_nameservers, clawd_domain_auth_code
  */
@@ -90,6 +91,27 @@ export const TOOLS: Tool[] = [
           description: 'Search query',
         },
       },
+    },
+  },
+
+  // ============================================================================
+  // REFERRAL TOOLS (1)
+  // ============================================================================
+  {
+    name: 'x402_redeem_referral',
+    description:
+      'Redeem a referral code to receive free USDC during onboarding. ' +
+      'Enter a valid referral code and USDC will be sent directly to your wallet. ' +
+      'This is typically the first step when setting up a new wallet.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description: 'The referral code to redeem (e.g., "CLAWD2024" or "ABC123XY")',
+        },
+      },
+      required: ['code'],
     },
   },
 

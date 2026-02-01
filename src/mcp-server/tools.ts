@@ -11,6 +11,7 @@ import { ConfigManager } from '../config/manager.js';
 import { SpendLimits } from '../security/limits.js';
 import { AuditLogger } from '../security/audit.js';
 import { TAPCredentialManager, TAPRegistry, TAPIdentityLevel } from '../tap/index.js';
+import { ReferralManager, Treasury } from '../referral/index.js';
 import type { PaymentRequest } from '../types/index.js';
 
 // Domain handlers
@@ -154,6 +155,112 @@ export class MCPTools {
         success: true,
         services,
         count: services.length,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  // ============================================================================
+  // REFERRAL TOOLS
+  // ============================================================================
+
+  /**
+   * Tool: x402_redeem_referral
+   * Redeem a referral code for free USDC
+   */
+  static async redeemReferral(args: { code: string }): Promise<any> {
+    try {
+      const { code } = args;
+
+      // Get user wallet address
+      const config = await ConfigManager.loadConfig();
+      const userAddress = config.wallet.address;
+
+      // Initialize referral manager
+      const referralManager = new ReferralManager();
+
+      // Validate the code
+      const validation = referralManager.validateCode(code);
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: validation.error || 'Invalid referral code',
+        };
+      }
+
+      const referralCode = validation.referralCode!;
+
+      // Check if this address has already redeemed
+      if (referralManager.hasAddressRedeemed(userAddress)) {
+        return {
+          success: false,
+          error: 'This wallet has already redeemed a referral code',
+          alreadyRedeemed: true,
+        };
+      }
+
+      // Initialize treasury
+      const treasury = new Treasury();
+      const treasuryLoaded = await treasury.loadFromEnvOrKeychain();
+
+      if (!treasuryLoaded) {
+        return {
+          success: false,
+          error: 'Treasury not configured. Contact support.',
+        };
+      }
+
+      // Check treasury balance
+      const hasFunds = await treasury.hasSufficientBalance(referralCode.amount);
+      if (!hasFunds) {
+        return {
+          success: false,
+          error: 'Treasury has insufficient balance. Please try again later.',
+        };
+      }
+
+      // Execute transfer
+      const result = await treasury.transfer(userAddress, referralCode.amount);
+
+      if (!result.success) {
+        await AuditLogger.logAction('referral_redemption_failed', {
+          code: code.toUpperCase(),
+          address: userAddress,
+          amount: referralCode.amount,
+          error: result.error,
+        });
+
+        return {
+          success: false,
+          error: result.error || 'Transfer failed',
+        };
+      }
+
+      // Mark code as redeemed
+      referralManager.markRedeemed(code, userAddress, result.txHash!);
+
+      // Log success
+      await AuditLogger.logAction('referral_redeemed', {
+        code: code.toUpperCase(),
+        address: userAddress,
+        amount: referralCode.amount,
+        txHash: result.txHash,
+      });
+
+      return {
+        success: true,
+        code: code.toUpperCase(),
+        amount: referralCode.amount,
+        currency: 'USDC',
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        recipientAddress: userAddress,
+        explorerUrl: Treasury.getExplorerUrl(result.txHash!),
+        message: `Successfully redeemed $${referralCode.amount} USDC! Check your balance with x402_check_balance.`,
       };
     } catch (error) {
       return {

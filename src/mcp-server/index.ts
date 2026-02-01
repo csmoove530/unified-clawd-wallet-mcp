@@ -3,8 +3,9 @@
 /**
  * Unified CLAWD Wallet MCP Server
  *
- * Provides 18 tools for:
+ * Provides 19 tools for:
  * - x402 payments (5 tools)
+ * - Referral (1 tool)
  * - TAP identity verification (4 tools)
  * - Domain registration and DNS management (9 tools)
  */
@@ -75,6 +76,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           args?.category as string,
           args?.query as string
         );
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
+      // Referral tools
+      case 'x402_redeem_referral':
+        result = await MCPTools.redeemReferral(args as { code: string });
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
@@ -209,7 +217,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('CLAWD Wallet MCP server running (18 tools available)');
+  console.error('CLAWD Wallet MCP server running (19 tools available)');
 }
 
 main().catch((error) => {

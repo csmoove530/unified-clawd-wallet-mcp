@@ -15,7 +15,7 @@ CLAWD Wallet is a unified MCP server combining:
 ~/clawd-wallet/
 ├── src/
 │   ├── mcp-server/
-│   │   ├── index.ts           # Unified MCP server (18 tools)
+│   │   ├── index.ts           # Unified MCP server (19 tools)
 │   │   ├── tools.ts           # Tool implementations
 │   │   └── tool-definitions.ts # All tool schemas
 │   ├── wallet/                # Wallet management
@@ -36,6 +36,10 @@ CLAWD Wallet is a unified MCP server combining:
 │   ├── domains/               # Domain marketplace
 │   │   ├── backend-client.ts  # HTTP client for backend
 │   │   └── handlers.ts        # Domain tool handlers
+│   ├── referral/              # Referral system
+│   │   ├── manager.ts         # Code generation/validation
+│   │   ├── treasury.ts        # USDC payout wallet
+│   │   └── types.ts           # Referral types
 │   ├── security/
 │   │   ├── limits.ts          # Spend limits
 │   │   └── audit.ts           # Audit logging
@@ -57,7 +61,7 @@ CLAWD Wallet is a unified MCP server combining:
 └── tsconfig.json
 ```
 
-## All 18 MCP Tools
+## All 19 MCP Tools
 
 ### Wallet (5)
 | Tool | Description |
@@ -67,6 +71,11 @@ CLAWD Wallet is a unified MCP server combining:
 | `x402_get_address` | Get wallet address |
 | `x402_transaction_history` | View payment history |
 | `x402_discover_services` | Find x402 services |
+
+### Referral (1)
+| Tool | Description |
+|------|-------------|
+| `x402_redeem_referral` | Redeem referral code for free USDC |
 
 ### TAP (4)
 | Tool | Description |
@@ -109,12 +118,20 @@ CLAWD Wallet is a unified MCP server combining:
 3. `x402_payment_request` - Execute payment
 4. `clawd_domain_confirm` - Confirm with tx_hash
 
+### Referral Redemption Flow
+1. New user receives a referral code (e.g., "CLAWD2024")
+2. `x402_redeem_referral` - Enter code to receive USDC
+3. Treasury wallet sends USDC directly to user's wallet
+4. User can now make x402 payments
+
 ## Environment Variables
 
 ### MCP Server
 ```bash
 CLAWD_BACKEND_URL=http://localhost:8402
 CLAWD_TAP_REGISTRY=https://tap-registry.visa.com/v1
+CLAWD_TAP_MOCK_MODE=true              # Enable TAP mock mode for demos
+CLAWD_TREASURY_PRIVATE_KEY=0x...      # Treasury wallet for referral payouts
 ```
 
 ### Backend

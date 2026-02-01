@@ -22,7 +22,9 @@ export type AuditAction =
   | 'tap_registered'
   | 'tap_revoked'
   | 'tap_headers_included'
-  | 'tap_headers_skipped';
+  | 'tap_headers_skipped'
+  | 'referral_redeemed'
+  | 'referral_redemption_failed';
 
 export interface AuditEntry {
   timestamp: string;
