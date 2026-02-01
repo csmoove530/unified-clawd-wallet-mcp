@@ -1,0 +1,19 @@
+# Railway deployment configuration for Clawd Domain Backend
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "sh -c 'python -m uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8402}'"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Environment variables (set in Railway dashboard, not here)
+# PORKBUN_API_KEY=pk1_...
+# PORKBUN_SECRET=sk1_...
+# TREASURY_ADDRESS=0x...
+# PUBLIC_URL=https://your-backend.railway.app
+# DATABASE_URL=postgresql://... (auto from Railway Postgres addon)

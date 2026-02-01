@@ -1,0 +1,62 @@
+{
+  "name": "@clawd/wallet-mcp",
+  "version": "1.0.0",
+  "description": "CLAWD Wallet - Unified MCP server for x402 payments, TAP identity, and domain registration",
+  "main": "./dist/mcp-server/index.js",
+  "bin": {
+    "clawd": "./dist/cli/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/mcp-server/index.js",
+    "test": "node --test",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "x402",
+    "mcp",
+    "wallet",
+    "claude",
+    "payments",
+    "base",
+    "usdc",
+    "cryptocurrency",
+    "terminal",
+    "cli",
+    "domains",
+    "dns",
+    "tap",
+    "identity"
+  ],
+  "author": "CLAWD Contributors",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/clawd/wallet-mcp.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@noble/ed25519": "^2.0.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.0",
+    "ethers": "^6.13.0",
+    "express": "^5.2.1",
+    "inquirer": "^10.0.0",
+    "keytar": "^7.9.0",
+    "open": "^10.0.0",
+    "ora": "^8.0.0",
+    "qrcode-terminal": "^0.12.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
