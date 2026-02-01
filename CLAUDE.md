@@ -1,176 +1,181 @@
 # Claude Code Context - CLAWD Wallet
 
-This file provides context for Claude Code when working on this project.
+Context file for Claude Code when working on this codebase.
 
-## Project Overview
+## Quick Commands
 
-CLAWD Wallet is a unified MCP server combining:
-1. **x402 payments** - Pay-per-use API access with USDC on Base
-2. **TAP identity** - Trusted Agent Protocol for verified identity
-3. **Domain registration** - Purchase and manage domains with USDC
+```bash
+npm run build      # Compile TypeScript
+npm run dev        # Watch mode
+node dist/mcp-server/index.js  # Run server
+```
 
-## Directory Structure
+## Project Structure
 
 ```
-~/clawd-wallet/
+src/
+├── mcp-server/
+│   ├── index.ts              # MCP server entry (19 tools)
+│   ├── tools.ts              # Tool implementations
+│   └── tool-definitions.ts   # Tool schemas
+├── wallet/
+│   ├── manager.ts            # Wallet creation/loading
+│   ├── keychain.ts           # OS keychain (supports service name param)
+│   ├── balance.ts            # USDC balance via ethers.js
+│   └── history.ts            # Transaction history
+├── x402/
+│   ├── client.ts             # HTTP client with x402 handling
+│   ├── payment.ts            # EIP-3009 payment execution
+│   └── discovery.ts          # Service discovery
+├── tap/
+│   ├── registry.ts           # TAP registry client (mock mode support)
+│   ├── credentials.ts        # Credential management
+│   ├── keychain.ts           # Ed25519 key storage
+│   ├── signing.ts            # RFC 9421 signatures
+│   └── types.ts              # TAP types
+├── domains/
+│   ├── backend-client.ts     # HTTP client for backend
+│   └── handlers.ts           # Domain tool handlers
+├── referral/
+│   ├── manager.ts            # Code generation/validation
+│   ├── treasury.ts           # USDC payout wallet
+│   └── types.ts              # Referral types
+├── security/
+│   ├── limits.ts             # Spend limits
+│   └── audit.ts              # Audit logging
+├── config/
+│   ├── manager.ts            # Config management
+│   └── schema.ts             # Zod validation
+└── types/
+    └── index.ts              # Shared types
+
+backend/                      # Python FastAPI
 ├── src/
-│   ├── mcp-server/
-│   │   ├── index.ts           # Unified MCP server (19 tools)
-│   │   ├── tools.ts           # Tool implementations
-│   │   └── tool-definitions.ts # All tool schemas
-│   ├── wallet/                # Wallet management
-│   │   ├── manager.ts         # Wallet creation/loading
-│   │   ├── keychain.ts        # OS keychain integration
-│   │   ├── balance.ts         # USDC balance checking
-│   │   └── history.ts         # Transaction history
-│   ├── x402/                  # x402 payment protocol
-│   │   ├── client.ts          # HTTP client with x402
-│   │   ├── payment.ts         # Payment execution
-│   │   └── discovery.ts       # Service discovery
-│   ├── tap/                   # Trusted Agent Protocol
-│   │   ├── types.ts           # TAP types
-│   │   ├── keychain.ts        # TAP key storage
-│   │   ├── credentials.ts     # Credential management
-│   │   ├── registry.ts        # TAP registry client
-│   │   └── signing.ts         # RFC 9421 signatures
-│   ├── domains/               # Domain marketplace
-│   │   ├── backend-client.ts  # HTTP client for backend
-│   │   └── handlers.ts        # Domain tool handlers
-│   ├── referral/              # Referral system
-│   │   ├── manager.ts         # Code generation/validation
-│   │   ├── treasury.ts        # USDC payout wallet
-│   │   └── types.ts           # Referral types
-│   ├── security/
-│   │   ├── limits.ts          # Spend limits
-│   │   └── audit.ts           # Audit logging
-│   ├── config/
-│   │   ├── manager.ts         # Config management
-│   │   └── schema.ts          # Zod validation
-│   └── types/
-│       └── index.ts           # TypeScript types
-├── backend/                   # Python FastAPI
-│   ├── src/
-│   │   ├── main.py           # API endpoints
-│   │   ├── config.py         # Configuration
-│   │   ├── porkbun.py        # Domain registrar
-│   │   ├── payments.py       # Payment verification
-│   │   └── database.py       # SQLite/PostgreSQL
-│   ├── Dockerfile
-│   └── railway.toml
-├── package.json
-└── tsconfig.json
+│   ├── main.py              # API endpoints
+│   ├── porkbun.py           # Porkbun API client
+│   ├── payments.py          # USDC payment verification
+│   └── database.py          # SQLite/PostgreSQL
+├── Dockerfile
+└── railway.toml
 ```
 
 ## All 19 MCP Tools
 
-### Wallet (5)
-| Tool | Description |
-|------|-------------|
-| `x402_payment_request` | Execute x402 payment flow |
-| `x402_check_balance` | Check USDC balance on Base |
-| `x402_get_address` | Get wallet address |
-| `x402_transaction_history` | View payment history |
-| `x402_discover_services` | Find x402 services |
-
-### Referral (1)
-| Tool | Description |
-|------|-------------|
-| `x402_redeem_referral` | Redeem referral code for free USDC |
-
-### TAP (4)
-| Tool | Description |
-|------|-------------|
-| `tap_register_agent` | Register with TAP registry |
-| `tap_verify_identity` | Complete KYC/KYB verification |
-| `tap_get_status` | Check verification status |
-| `tap_revoke` | Remove TAP credentials |
-
-### Domains (9)
-| Tool | Description |
-|------|-------------|
-| `clawd_domain_search` | Search available domains |
-| `clawd_domain_purchase` | Initiate purchase |
-| `clawd_domain_confirm` | Confirm after payment |
-| `clawd_domain_list` | List owned domains |
-| `clawd_dns_list` | List DNS records |
-| `clawd_dns_create` | Create DNS record |
-| `clawd_dns_delete` | Delete DNS record |
-| `clawd_domain_nameservers` | Update nameservers |
-| `clawd_domain_auth_code` | Get transfer auth code |
+| Category | Tool | Handler |
+|----------|------|---------|
+| Wallet | `x402_payment_request` | `MCPTools.paymentRequest()` |
+| Wallet | `x402_check_balance` | `MCPTools.checkBalance()` |
+| Wallet | `x402_get_address` | `MCPTools.getAddress()` |
+| Wallet | `x402_transaction_history` | `MCPTools.transactionHistory()` |
+| Wallet | `x402_discover_services` | `MCPTools.discoverServices()` |
+| Referral | `x402_redeem_referral` | `MCPTools.redeemReferral()` |
+| TAP | `tap_register_agent` | `MCPTools.registerAgent()` |
+| TAP | `tap_verify_identity` | `MCPTools.verifyIdentity()` |
+| TAP | `tap_get_status` | `MCPTools.getTapStatus()` |
+| TAP | `tap_revoke` | `MCPTools.revokeAgent()` |
+| Domains | `clawd_domain_search` | `MCPTools.domainSearch()` |
+| Domains | `clawd_domain_purchase` | `MCPTools.domainPurchase()` |
+| Domains | `clawd_domain_confirm` | `MCPTools.domainConfirm()` |
+| Domains | `clawd_domain_list` | `MCPTools.domainList()` |
+| Domains | `clawd_dns_list` | `MCPTools.dnsList()` |
+| Domains | `clawd_dns_create` | `MCPTools.dnsCreate()` |
+| Domains | `clawd_dns_delete` | `MCPTools.dnsDelete()` |
+| Domains | `clawd_domain_nameservers` | `MCPTools.domainNameservers()` |
+| Domains | `clawd_domain_auth_code` | `MCPTools.domainAuthCode()` |
 
 ## Key Patterns
 
-### x402 Payment Flow
-1. Initial request returns 402 with payment details
-2. Parse `accepts` array for payment options
-3. Generate EIP-3009 authorization
-4. Retry with `X-PAYMENT` header
-5. TAP headers added if identity verified
+### Adding a New Tool
 
-### TAP Verification Flow
-1. `tap_register_agent` - Register with registry
-2. `tap_verify_identity` - Complete verification (email/kyc/kyb)
-3. `tap_get_status` - Check status and reputation
+1. Add schema to `tool-definitions.ts`
+2. Add handler to `tools.ts`
+3. Add case to switch in `index.ts`
+4. Update tool count comment
+5. Rebuild: `npm run build`
 
-### Domain Purchase Flow
-1. `clawd_domain_search` - Find available domains
-2. `clawd_domain_purchase` - Get payment details
-3. `x402_payment_request` - Execute payment
-4. `clawd_domain_confirm` - Confirm with tx_hash
+### Keychain Usage
 
-### Referral Redemption Flow
-1. New user receives a referral code (e.g., "CLAWD2024")
-2. `x402_redeem_referral` - Enter code to receive USDC
-3. Treasury wallet sends USDC directly to user's wallet
-4. User can now make x402 payments
+```typescript
+// Default service (clawd-wallet)
+await Keychain.getPrivateKey();
+await Keychain.savePrivateKey(key);
+
+// Custom service (e.g., treasury)
+await Keychain.getPrivateKey('clawd-treasury');
+await Keychain.savePrivateKey(key, 'clawd-treasury');
+```
+
+### TAP Mock Mode
+
+Enabled when:
+- `CLAWD_TAP_MOCK_MODE=true`, or
+- `CLAWD_TAP_REGISTRY=mock://localhost`
+
+Mock mode skips real registry calls, returns simulated responses.
+
+### Audit Actions
+
+```typescript
+type AuditAction =
+  | 'payment_approved' | 'payment_executed' | 'payment_failed' | 'payment_error'
+  | 'config_changed' | 'wallet_created' | 'wallet_exported' | 'limit_exceeded'
+  | 'tap_verified' | 'tap_registered' | 'tap_revoked'
+  | 'tap_headers_included' | 'tap_headers_skipped'
+  | 'referral_redeemed' | 'referral_redemption_failed';
+```
 
 ## Environment Variables
 
 ### MCP Server
+
 ```bash
-CLAWD_BACKEND_URL=http://localhost:8402
+CLAWD_BACKEND_URL=https://clawd-domain-backend-production.up.railway.app
 CLAWD_TAP_REGISTRY=https://tap-registry.visa.com/v1
-CLAWD_TAP_MOCK_MODE=true              # Enable TAP mock mode for demos
-CLAWD_TREASURY_PRIVATE_KEY=0x...      # Treasury wallet for referral payouts
+CLAWD_TAP_MOCK_MODE=true
+CLAWD_TREASURY_PRIVATE_KEY=0x...  # For referral payouts
 ```
 
-### Backend
+### Backend (Railway)
+
 ```bash
 PORKBUN_API_KEY=pk1_...
 PORKBUN_SECRET=sk1_...
 TREASURY_ADDRESS=0x...
-PUBLIC_URL=https://your-backend.railway.app
-DATABASE_URL=sqlite:///./clawd_domains.db
+PUBLIC_URL=https://clawd-domain-backend-production.up.railway.app
+DATABASE_URL=sqlite:////tmp/clawd_domains.db
+ENVIRONMENT=production
 ```
 
 ## Common Issues
 
-1. **"Configuration not found"** - Run `clawd init` to create wallet
-2. **"No wallet found in keychain"** - Wallet not initialized
-3. **Domain tools fail** - Check CLAWD_BACKEND_URL is set
-4. **Payment verification failed** - Check tx_hash format (0x + 64 hex chars)
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| `Configuration not found` | First run | Auto-creates on first use |
+| `No wallet found in keychain` | Keychain access | Check OS permissions |
+| Domain tools fail | Backend unreachable | Check `CLAWD_BACKEND_URL` |
+| TAP errors | No mock mode | Set `CLAWD_TAP_MOCK_MODE=true` |
+| Referral fails | No treasury | Set `CLAWD_TREASURY_PRIVATE_KEY` |
 
-## Development Commands
+## Testing Changes
 
 ```bash
-# Build TypeScript
+# Rebuild
 npm run build
 
-# Watch mode
-npm run dev
-
-# Run MCP server
+# Test MCP server directly
 node dist/mcp-server/index.js
 
-# Run backend locally
+# Test backend locally
 cd backend
-source venv/bin/activate
-uvicorn src.main:app --host 0.0.0.0 --port 8402 --reload
+uvicorn src.main:app --port 8402 --reload
 ```
 
-## Security Notes
+## Data Locations
 
-- Private keys in OS keychain, not files
-- TAP credentials in ~/.clawd/tap/ with 0600 permissions
-- Spend limits: $10/tx, $50/day (configurable)
-- Never enable SKIP_PAYMENT_VERIFICATION in production
+| Data | Path |
+|------|------|
+| Config | `~/.clawd/config.json` |
+| Audit log | `~/.clawd/audit.log` |
+| TAP credentials | `~/.clawd/tap/` |
+| Referral codes | `~/.clawd/referral/codes.json` |
+| Transaction history | `~/.clawd/history.json` |
