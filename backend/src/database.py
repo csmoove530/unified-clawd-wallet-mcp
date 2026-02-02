@@ -44,11 +44,38 @@ async def init_db():
             )
         """)
 
+        # Invite codes table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS invite_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL UNIQUE,
+                amount_usdc REAL NOT NULL DEFAULT 1.0,
+                amount_eth REAL NOT NULL DEFAULT 0.001,
+                created_at TEXT NOT NULL,
+                expires_at TEXT,
+                redeemed_at TEXT,
+                redeemed_by TEXT,
+                usdc_tx_hash TEXT,
+                eth_tx_hash TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+
         # Create indexes
         await db.execute("CREATE INDEX IF NOT EXISTS idx_domains_owner ON domains(owner_wallet)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_purchases_status ON purchases(status)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_invite_codes_code ON invite_codes(code)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_invite_codes_redeemed_by ON invite_codes(redeemed_by)")
 
         await db.commit()
+
+        # Seed invite codes if table is empty
+        async with aiosqlite.connect(DB_PATH) as seed_db:
+            async with seed_db.execute("SELECT COUNT(*) FROM invite_codes") as cursor:
+                row = await cursor.fetchone()
+                if row and row[0] == 0:
+                    await _seed_invite_codes(seed_db)
+                    await seed_db.commit()
 
 
 # Purchase operations
@@ -197,3 +224,70 @@ async def verify_domain_owner(domain: str, wallet_address: str) -> bool:
     if not domain_info:
         return False
     return domain_info.get("owner_wallet", "").lower() == wallet_address.lower()
+
+
+# Invite code operations
+async def get_invite_code(code: str) -> Optional[dict]:
+    """Look up an invite code by its code string."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM invite_codes WHERE UPPER(code) = UPPER(?)", (code,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return dict(row)
+            return None
+
+
+async def has_wallet_redeemed_invite(wallet: str) -> bool:
+    """Check if a wallet has already redeemed any invite code."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT COUNT(*) FROM invite_codes WHERE LOWER(redeemed_by) = LOWER(?)",
+            (wallet,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row is not None and row[0] > 0
+
+
+async def mark_invite_redeemed(
+    code: str, wallet: str, usdc_tx_hash: str, eth_tx_hash: str
+) -> bool:
+    """Atomically mark an invite code as redeemed. Returns False if already redeemed."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """UPDATE invite_codes
+               SET redeemed_at = ?, redeemed_by = ?, usdc_tx_hash = ?, eth_tx_hash = ?
+               WHERE UPPER(code) = UPPER(?) AND redeemed_at IS NULL""",
+            (datetime.utcnow().isoformat(), wallet.lower(), usdc_tx_hash, eth_tx_hash, code),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def create_invite_code(
+    code: str,
+    amount_usdc: float = 1.0,
+    amount_eth: float = 0.001,
+    expires_at: Optional[str] = None,
+) -> None:
+    """Create a new invite code."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """INSERT INTO invite_codes (code, amount_usdc, amount_eth, created_at, expires_at, is_active)
+               VALUES (?, ?, ?, ?, ?, 1)""",
+            (code.upper(), amount_usdc, amount_eth, datetime.utcnow().isoformat(), expires_at),
+        )
+        await db.commit()
+
+
+async def _seed_invite_codes(db) -> None:
+    """Seed initial invite codes into an empty table."""
+    codes = [f"CL{str(i).zfill(3)}" for i in range(1, 21)]
+    now = datetime.utcnow().isoformat()
+    await db.executemany(
+        """INSERT INTO invite_codes (code, amount_usdc, amount_eth, created_at, is_active)
+           VALUES (?, 1.0, 0.001, ?, 1)""",
+        [(code, now) for code in codes],
+    )

@@ -100,15 +100,15 @@ export const TOOLS: Tool[] = [
   {
     name: 'x402_redeem_referral',
     description:
-      'Redeem a referral code to receive free USDC during onboarding. ' +
-      'Enter a valid referral code and USDC will be sent directly to your wallet. ' +
+      'Redeem an invite code to receive free USDC and ETH (for gas) during onboarding. ' +
+      'Enter a valid invite code and $1 USDC + 0.001 ETH will be sent directly to your wallet. ' +
       'This is typically the first step when setting up a new wallet.',
     inputSchema: {
       type: 'object',
       properties: {
         code: {
           type: 'string',
-          description: 'The referral code to redeem (e.g., "CLAWD2024" or "ABC123XY")',
+          description: 'The invite code to redeem (e.g., "CL001" or "CL020")',
         },
       },
       required: ['code'],
