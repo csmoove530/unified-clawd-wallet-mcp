@@ -326,11 +326,47 @@ async def x402_payment(purchase_id: str, request: Request):
         raise HTTPException(400, f"Purchase status is {purchase['status']}")
 
     auth_header = request.headers.get("authorization", "")
+    x_payment_header = request.headers.get("x-payment", "")
 
-    if auth_header.startswith("x402 "):
-        await db.update_purchase(purchase_id, {"status": "processing"})
+    # Parse payment from either X-PAYMENT (x402 v1) or Authorization header
+    params = {}
+    payer = "unknown"
+    signature = ""
+    tx_hash = ""
 
-        params = {}
+    if x_payment_header:
+        # x402 v1 format: base64 encoded JSON
+        try:
+            import base64
+            payload_json = base64.b64decode(x_payment_header).decode('utf-8')
+            payload = json.loads(payload_json)
+
+            if payload.get("x402Version") == 1 and "payload" in payload:
+                inner = payload["payload"]
+                auth = inner.get("authorization", {})
+                payer = auth.get("from", "unknown")
+                signature = inner.get("signature", "")
+                tx_hash = inner.get("txHash", "") or auth.get("txHash", "")
+
+                # Validate payTo matches treasury
+                if auth.get("to", "").lower() != config.TREASURY_ADDRESS.lower():
+                    await db.update_purchase(purchase_id, {"status": "payment_failed"})
+                    return JSONResponse(status_code=400, content={"error": "Invalid recipient address in X-PAYMENT"})
+
+                params = {
+                    "recipient": auth.get("to", ""),
+                    "payer": payer,
+                    "signature": signature,
+                    "tx_hash": tx_hash,
+                    "amount": auth.get("value", ""),
+                }
+                logger.info(f"Parsed X-PAYMENT header: payer={payer}, has_signature={bool(signature)}, has_tx_hash={bool(tx_hash)}")
+        except Exception as e:
+            logger.error(f"Failed to parse X-PAYMENT header: {e}")
+            return JSONResponse(status_code=400, content={"error": f"Invalid X-PAYMENT header format: {str(e)}"})
+
+    elif auth_header.startswith("x402 "):
+        # Legacy format: Authorization: x402 key="value" pairs
         matches = re.findall(r'(\w+)="([^"]+)"', auth_header)
         for key, value in matches:
             params[key] = value
@@ -340,13 +376,17 @@ async def x402_payment(purchase_id: str, request: Request):
             return JSONResponse(status_code=400, content={"error": "Invalid recipient address"})
 
         expected_nonce = purchase.get("nonce", f"clawd-{purchase_id}")
-        if params.get("nonce") != expected_nonce:
+        if params.get("nonce") and params.get("nonce") != expected_nonce:
             await db.update_purchase(purchase_id, {"status": "payment_failed"})
             return JSONResponse(status_code=400, content={"error": "Invalid nonce"})
 
         payer = params.get("payer", "unknown")
         signature = params.get("signature", "")
         tx_hash = params.get("tx_hash", "")
+
+    # Check if we have any payment proof
+    if x_payment_header or auth_header.startswith("x402 "):
+        await db.update_purchase(purchase_id, {"status": "processing"})
 
         # CRITICAL: Verify payment on-chain before registering domain
         if not tx_hash:
@@ -425,13 +465,40 @@ async def x402_payment(purchase_id: str, request: Request):
                 content={"error": "An error occurred during registration. Please try again."}
             )
 
-    # No payment proof - return 402
+    # No payment proof - return 402 with x402 v1 format
     await db.update_purchase(purchase_id, {"status": "awaiting_payment"})
 
     amount_str = f"{float(purchase['amount']):.2f}"
+    # Convert to base units (USDC has 6 decimals)
+    amount_base_units = str(int(float(purchase['amount']) * 1_000_000))
     nonce = f"clawd-{purchase_id}"
     await db.update_purchase(purchase_id, {"nonce": nonce})
 
+    # x402 v1 response format
+    x402_response = {
+        "x402Version": 1,
+        "accepts": [
+            {
+                "scheme": "exact",
+                "network": "base",
+                "maxAmountRequired": amount_base_units,
+                "resource": f"/purchase/pay/{purchase_id}",
+                "description": f"Domain: {purchase['domain']} ({purchase['years']} year)",
+                "payTo": config.TREASURY_ADDRESS,
+                "asset": config.USDC_CONTRACT,
+                "maxTimeoutSeconds": 3600,
+                "extra": {
+                    "name": "clawd-domains",
+                    "version": "1",
+                    "nonce": nonce,
+                    "domain": purchase["domain"],
+                    "purchaseId": purchase_id,
+                }
+            }
+        ]
+    }
+
+    # Keep WWW-Authenticate header for backwards compatibility
     www_auth = (
         f'x402 recipient="{config.TREASURY_ADDRESS}", '
         f'amount="{amount_str}", '
@@ -442,13 +509,7 @@ async def x402_payment(purchase_id: str, request: Request):
 
     return Response(
         status_code=402,
-        content=json.dumps({
-            "error": "Payment Required",
-            "domain": purchase["domain"],
-            "amount": amount_str,
-            "currency": "USDC",
-            "recipient": config.TREASURY_ADDRESS,
-        }),
+        content=json.dumps(x402_response),
         media_type="application/json",
         headers={"WWW-Authenticate": www_auth}
     )

@@ -13,17 +13,27 @@ import { ConfigManager } from '../config/manager.js';
 import { TAPSigner, TAPCredentialManager } from '../tap/index.js';
 import type { Transaction, X402PaymentOption } from '../types/index.js';
 
+// USDC ABI for transfer
+const USDC_ABI = [
+  'function transfer(address to, uint256 amount) returns (bool)',
+  'function balanceOf(address owner) view returns (uint256)',
+  'function decimals() view returns (uint8)'
+];
+
 export interface PaymentResult {
   success: boolean;
   response?: any;
   error?: string;
   amountPaid?: number;
   service?: string;
+  txHash?: string;
 }
 
 export class PaymentHandler {
   private walletManager: WalletManager;
   private balanceChecker: BalanceChecker | null = null;
+  private provider: ethers.JsonRpcProvider | null = null;
+  private usdcContractAddress: string = '';
 
   constructor() {
     this.walletManager = new WalletManager();
@@ -35,10 +45,62 @@ export class PaymentHandler {
   async initialize(): Promise<void> {
     await this.walletManager.loadFromKeychain();
     const config = await ConfigManager.loadConfig();
+    this.provider = new ethers.JsonRpcProvider(config.wallet.rpcUrl);
+    this.usdcContractAddress = config.wallet.usdcContract;
     this.balanceChecker = new BalanceChecker(
       config.wallet.rpcUrl,
       config.wallet.usdcContract
     );
+  }
+
+  /**
+   * Execute actual USDC transfer on-chain
+   * Returns the transaction hash
+   */
+  async executeUSDCTransfer(
+    payTo: string,
+    amountBaseUnits: string
+  ): Promise<{ txHash: string; success: boolean; error?: string }> {
+    try {
+      if (!this.provider) {
+        throw new Error('Payment handler not initialized');
+      }
+
+      const wallet = this.walletManager.getWallet();
+      const connectedWallet = wallet.connect(this.provider);
+
+      // Create USDC contract instance with signer
+      const usdcContract = new ethers.Contract(
+        this.usdcContractAddress,
+        USDC_ABI,
+        connectedWallet
+      );
+
+      // Execute the transfer
+      const tx = await usdcContract.transfer(payTo, BigInt(amountBaseUnits));
+
+      // Wait for confirmation (1 block)
+      const receipt = await tx.wait(1);
+
+      if (receipt.status === 1) {
+        return {
+          txHash: receipt.hash,
+          success: true
+        };
+      } else {
+        return {
+          txHash: receipt.hash,
+          success: false,
+          error: 'Transaction reverted'
+        };
+      }
+    } catch (error) {
+      return {
+        txHash: '',
+        success: false,
+        error: (error as Error).message
+      };
+    }
   }
 
   /**
@@ -107,7 +169,32 @@ export class PaymentHandler {
         };
       }
 
-      // Step 7: Generate payment authorization
+      // Step 7: Execute actual USDC transfer on-chain
+      await AuditLogger.logAction('payment_approved', {
+        url,
+        amount,
+        payTo: paymentOption.payTo,
+        status: 'executing_transfer'
+      });
+
+      const transferResult = await this.executeUSDCTransfer(
+        paymentOption.payTo,
+        paymentOption.maxAmountRequired
+      );
+
+      if (!transferResult.success) {
+        await AuditLogger.logAction('payment_failed', {
+          url,
+          amount,
+          error: transferResult.error
+        });
+        return {
+          success: false,
+          error: `USDC transfer failed: ${transferResult.error}`
+        };
+      }
+
+      // Step 8: Generate payment authorization with tx_hash
       const wallet = this.walletManager.getWallet();
       const { authorization, signature } = await X402Client.generatePaymentAuthorization(
         wallet,
@@ -116,14 +203,20 @@ export class PaymentHandler {
         paymentOption.asset
       );
 
-      // Step 8: Create X-PAYMENT header
+      // Add tx_hash to authorization
+      const authWithTxHash = {
+        ...authorization,
+        txHash: transferResult.txHash
+      };
+
+      // Step 9: Create X-PAYMENT header with tx_hash
       const xPaymentHeader = X402Client.createXPaymentHeader(
         paymentOption,
-        authorization,
+        authWithTxHash,
         signature
       );
 
-      // Step 9: Build headers with TAP if available
+      // Step 10: Build headers with TAP if available
       const headers: Record<string, string> = {
         'X-PAYMENT': xPaymentHeader
       };
@@ -151,25 +244,26 @@ export class PaymentHandler {
         });
       }
 
-      // Step 10: Retry request with payment proof (and TAP headers if available)
+      // Step 11: Retry request with payment proof (and TAP headers if available)
       const paymentResponse = await X402Client.makeRequest(url, {
         method,
         body,
         headers
       });
 
-      // Step 10: Handle response
+      // Step 12: Handle response
       const serviceName = new URL(url).hostname;
 
       if (paymentResponse.status >= 200 && paymentResponse.status < 300) {
-        // Payment successful
+        // Payment successful - transaction already on-chain
         const transaction: Transaction = {
-          id: ethers.hexlify(ethers.randomBytes(16)),
+          id: transferResult.txHash,
           timestamp: Date.now(),
           service: serviceName,
           description: description || paymentOption.description || 'x402 payment',
           amount,
           currency: 'USDC',
+          txHash: transferResult.txHash,
           status: 'success'
         };
 
@@ -178,7 +272,8 @@ export class PaymentHandler {
           url,
           amount,
           service: serviceName,
-          payTo: paymentOption.payTo
+          payTo: paymentOption.payTo,
+          txHash: transferResult.txHash
         });
 
         let responseData = null;
@@ -194,7 +289,8 @@ export class PaymentHandler {
           success: true,
           response: responseData,
           amountPaid: amount,
-          service: serviceName
+          service: serviceName,
+          txHash: transferResult.txHash
         };
       }
 

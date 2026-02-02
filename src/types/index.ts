@@ -109,6 +109,7 @@ export interface X402PaymentPayload {
   network: string;
   payload: {
     signature: string;
+    txHash?: string;
     authorization: {
       from: string;
       to: string;
@@ -116,6 +117,7 @@ export interface X402PaymentPayload {
       validAfter: string;
       validBefore: string;
       nonce: string;
+      txHash?: string;
     };
   };
 }

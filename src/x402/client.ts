@@ -154,13 +154,15 @@ export class X402Client {
       network: paymentOption.network,
       payload: {
         signature,
+        txHash: authorization.txHash || '',
         authorization: {
           from: authorization.from,
           to: authorization.to,
           value: authorization.value,
           validAfter: authorization.validAfter,
           validBefore: authorization.validBefore,
-          nonce: authorization.nonce
+          nonce: authorization.nonce,
+          txHash: authorization.txHash || ''
         }
       }
     };
