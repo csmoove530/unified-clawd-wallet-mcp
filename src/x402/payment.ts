@@ -177,12 +177,13 @@ export class PaymentHandler {
         status: 'executing_transfer'
       });
 
+      const wallet = this.walletManager.getWallet();
       const transferResult = await this.executeUSDCTransfer(
         paymentOption.payTo,
         paymentOption.maxAmountRequired
       );
 
-      if (!transferResult.success) {
+      if (!transferResult.success || !transferResult.txHash) {
         await AuditLogger.logAction('payment_failed', {
           url,
           amount,
@@ -194,31 +195,13 @@ export class PaymentHandler {
         };
       }
 
-      // Step 8: Generate payment authorization with tx_hash
-      const wallet = this.walletManager.getWallet();
-      const { authorization, signature } = await X402Client.generatePaymentAuthorization(
-        wallet,
-        paymentOption.payTo,
-        paymentOption.maxAmountRequired,
-        paymentOption.asset
-      );
+      // Step 8: Build x402 Authorization header with tx_hash
+      const nonce = paymentOption.extra?.nonce || `clawd-${Date.now()}`;
+      const authHeader = `x402 recipient="${paymentOption.payTo}", nonce="${nonce}", payer="${wallet.address}", tx_hash="${transferResult.txHash}"`;
 
-      // Add tx_hash to authorization
-      const authWithTxHash = {
-        ...authorization,
-        txHash: transferResult.txHash
-      };
-
-      // Step 9: Create X-PAYMENT header with tx_hash
-      const xPaymentHeader = X402Client.createXPaymentHeader(
-        paymentOption,
-        authWithTxHash,
-        signature
-      );
-
-      // Step 10: Build headers with TAP if available
+      // Step 9: Build headers
       const headers: Record<string, string> = {
-        'X-PAYMENT': xPaymentHeader
+        'Authorization': authHeader
       };
 
       // Add TAP headers if identity is verified
@@ -226,7 +209,7 @@ export class PaymentHandler {
         const tapHeaders = await TAPSigner.buildHeaders({
           method,
           url,
-          payment: xPaymentHeader
+          payment: authHeader
         });
 
         if (tapHeaders) {
@@ -244,14 +227,14 @@ export class PaymentHandler {
         });
       }
 
-      // Step 11: Retry request with payment proof (and TAP headers if available)
+      // Step 10: Retry request with payment proof (and TAP headers if available)
       const paymentResponse = await X402Client.makeRequest(url, {
         method,
         body,
         headers
       });
 
-      // Step 12: Handle response
+      // Step 11: Handle response
       const serviceName = new URL(url).hostname;
 
       if (paymentResponse.status >= 200 && paymentResponse.status < 300) {

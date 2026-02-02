@@ -94,6 +94,7 @@ export interface X402PaymentOption {
   extra?: {
     name?: string;
     version?: string;
+    nonce?: string;
   };
 }
 
