@@ -3,8 +3,9 @@
 /**
  * Unified CLAWD Wallet MCP Server
  *
- * Provides 19 tools for:
+ * Provides 21 tools for:
  * - x402 payments (5 tools)
+ * - Security/Spending controls (2 tools)
  * - Referral (1 tool)
  * - TAP identity verification (4 tools)
  * - Domain registration and DNS management (9 tools)
@@ -75,6 +76,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await MCPTools.discoverServices(
           args?.category as string,
           args?.query as string
+        );
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
+      // Security tools
+      case 'x402_get_spending_controls':
+        result = await MCPTools.getSpendingControls();
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
+      case 'x402_update_spending_controls':
+        result = await MCPTools.updateSpendingControls(
+          args as {
+            maxTransactionAmount?: number;
+            autoApproveUnder?: number;
+            dailyLimit?: number;
+          }
         );
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -217,7 +237,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('CLAWD Wallet MCP server running (19 tools available)');
+  console.error('CLAWD Wallet MCP server running (21 tools available)');
 }
 
 main().catch((error) => {

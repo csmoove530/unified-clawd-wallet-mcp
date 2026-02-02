@@ -165,6 +165,114 @@ export class MCPTools {
   }
 
   // ============================================================================
+  // SECURITY TOOLS
+  // ============================================================================
+
+  /**
+   * Tool: x402_get_spending_controls
+   * Get current spending controls and limits
+   */
+  static async getSpendingControls(): Promise<any> {
+    try {
+      const config = await ConfigManager.loadConfig();
+      const dailySpend = await SpendLimits.getDailySpend();
+
+      return {
+        success: true,
+        controls: {
+          maxTransactionAmount: config.security.maxTransactionAmount,
+          autoApproveUnder: config.security.autoApproveUnder,
+          dailyLimit: config.security.dailyLimit,
+        },
+        usage: {
+          spentToday: dailySpend,
+          remainingDaily: Math.max(0, config.security.dailyLimit - dailySpend),
+        },
+        description: {
+          maxTransactionAmount: 'Maximum USDC allowed per single transaction',
+          autoApproveUnder: 'Transactions under this amount are auto-approved without prompt',
+          dailyLimit: 'Maximum total USDC that can be spent in 24 hours',
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  /**
+   * Tool: x402_update_spending_controls
+   * Update spending controls and limits
+   */
+  static async updateSpendingControls(args: {
+    maxTransactionAmount?: number;
+    autoApproveUnder?: number;
+    dailyLimit?: number;
+  }): Promise<any> {
+    try {
+      const { maxTransactionAmount, autoApproveUnder, dailyLimit } = args;
+
+      // Must provide at least one parameter
+      if (maxTransactionAmount === undefined && autoApproveUnder === undefined && dailyLimit === undefined) {
+        return {
+          success: false,
+          error: 'Please provide at least one setting to update: maxTransactionAmount, autoApproveUnder, or dailyLimit',
+        };
+      }
+
+      // Load current config
+      const config = await ConfigManager.loadConfig();
+      const previousValues = { ...config.security };
+
+      // Validate and update each provided value
+      if (maxTransactionAmount !== undefined) {
+        if (maxTransactionAmount <= 0) {
+          return { success: false, error: 'maxTransactionAmount must be positive' };
+        }
+        config.security.maxTransactionAmount = maxTransactionAmount;
+      }
+
+      if (autoApproveUnder !== undefined) {
+        if (autoApproveUnder < 0) {
+          return { success: false, error: 'autoApproveUnder cannot be negative' };
+        }
+        config.security.autoApproveUnder = autoApproveUnder;
+      }
+
+      if (dailyLimit !== undefined) {
+        if (dailyLimit <= 0) {
+          return { success: false, error: 'dailyLimit must be positive' };
+        }
+        config.security.dailyLimit = dailyLimit;
+      }
+
+      // Save updated config
+      await ConfigManager.saveConfig(config);
+
+      // Log the change
+      await AuditLogger.logAction('config_changed', {
+        section: 'security',
+        previous: previousValues,
+        updated: config.security,
+      });
+
+      return {
+        success: true,
+        message: 'Spending controls updated successfully',
+        previous: previousValues,
+        current: config.security,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  // ============================================================================
   // REFERRAL TOOLS
   // ============================================================================
 

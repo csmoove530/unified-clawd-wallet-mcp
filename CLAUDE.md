@@ -59,7 +59,7 @@ backend/                      # Python FastAPI
 └── railway.toml
 ```
 
-## All 19 MCP Tools
+## All 21 MCP Tools
 
 | Category | Tool | Handler |
 |----------|------|---------|
@@ -68,6 +68,8 @@ backend/                      # Python FastAPI
 | Wallet | `x402_get_address` | `MCPTools.getAddress()` |
 | Wallet | `x402_transaction_history` | `MCPTools.transactionHistory()` |
 | Wallet | `x402_discover_services` | `MCPTools.discoverServices()` |
+| Security | `x402_get_spending_controls` | `MCPTools.getSpendingControls()` |
+| Security | `x402_update_spending_controls` | `MCPTools.updateSpendingControls()` |
 | Referral | `x402_redeem_referral` | `MCPTools.redeemReferral()` |
 | TAP | `tap_register_agent` | `MCPTools.registerAgent()` |
 | TAP | `tap_verify_identity` | `MCPTools.verifyIdentity()` |

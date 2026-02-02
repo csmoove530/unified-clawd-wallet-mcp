@@ -1,8 +1,9 @@
 /**
  * MCP Tool definitions for unified CLAWD Wallet
  *
- * All 19 tools:
+ * All 21 tools:
  * - Wallet (5): x402_payment_request, x402_check_balance, x402_get_address, x402_transaction_history, x402_discover_services
+ * - Security (2): x402_get_spending_controls, x402_update_spending_controls
  * - Referral (1): x402_redeem_referral
  * - TAP (4): tap_register_agent, tap_verify_identity, tap_get_status, tap_revoke
  * - Domains (9): clawd_domain_search, clawd_domain_purchase, clawd_domain_confirm, clawd_domain_list, clawd_dns_list, clawd_dns_create, clawd_dns_delete, clawd_domain_nameservers, clawd_domain_auth_code
@@ -89,6 +90,44 @@ export const TOOLS: Tool[] = [
         query: {
           type: 'string',
           description: 'Search query',
+        },
+      },
+    },
+  },
+
+  // ============================================================================
+  // SECURITY TOOLS (2)
+  // ============================================================================
+  {
+    name: 'x402_get_spending_controls',
+    description:
+      'Get current spending controls and limits for your wallet. Shows maxTransactionAmount, ' +
+      'autoApproveUnder threshold, and dailyLimit settings.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'x402_update_spending_controls',
+    description:
+      'Update spending controls and limits for your wallet. Use this to set maximum transaction amount, ' +
+      'auto-approve threshold, or daily spending limit. All amounts are in USDC.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        maxTransactionAmount: {
+          type: 'number',
+          description: 'Maximum amount allowed per transaction in USDC (e.g., 15 for $15 max)',
+        },
+        autoApproveUnder: {
+          type: 'number',
+          description:
+            'Transactions under this amount are auto-approved without prompt (e.g., 0.1 for $0.10)',
+        },
+        dailyLimit: {
+          type: 'number',
+          description: 'Maximum total spending allowed per day in USDC (e.g., 50 for $50/day)',
         },
       },
     },
