@@ -70,10 +70,18 @@ PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:8402")
 # Database (SQLite for MVP, PostgreSQL for production)
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./clawd_domains.db")
 
+# Treasury signing key (for invite code payouts)
+TREASURY_PRIVATE_KEY = os.getenv("TREASURY_PRIVATE_KEY", "")
+
+# Invite code payout amounts
+INVITE_USDC_AMOUNT = float(os.getenv("INVITE_USDC_AMOUNT", "1.0"))
+INVITE_ETH_AMOUNT = float(os.getenv("INVITE_ETH_AMOUNT", "0.001"))
+
 # Rate limiting
 RATE_LIMIT_SEARCH = os.getenv("RATE_LIMIT_SEARCH", "20/minute")
 RATE_LIMIT_PURCHASE = os.getenv("RATE_LIMIT_PURCHASE", "10/minute")
 RATE_LIMIT_DNS = os.getenv("RATE_LIMIT_DNS", "30/minute")
+RATE_LIMIT_INVITE = os.getenv("RATE_LIMIT_INVITE", "5/minute")
 
 
 # Validation helpers

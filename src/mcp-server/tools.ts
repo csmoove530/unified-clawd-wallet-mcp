@@ -11,7 +11,7 @@ import { ConfigManager } from '../config/manager.js';
 import { SpendLimits } from '../security/limits.js';
 import { AuditLogger } from '../security/audit.js';
 import { TAPCredentialManager, TAPRegistry, TAPIdentityLevel } from '../tap/index.js';
-import { ReferralManager, Treasury } from '../referral/index.js';
+import { domainClient } from '../domains/backend-client.js';
 import type { PaymentRequest } from '../types/index.js';
 
 // Domain handlers
@@ -170,7 +170,7 @@ export class MCPTools {
 
   /**
    * Tool: x402_redeem_referral
-   * Redeem a referral code for free USDC
+   * Redeem an invite code for USDC + ETH via backend
    */
   static async redeemReferral(args: { code: string }): Promise<any> {
     try {
@@ -178,94 +178,33 @@ export class MCPTools {
 
       // Get user wallet address
       const config = await ConfigManager.loadConfig();
-      const userAddress = config.wallet.address;
+      const walletAddress = config.wallet.address;
 
-      // Initialize referral manager
-      const referralManager = new ReferralManager();
-
-      // Validate the code
-      const validation = referralManager.validateCode(code);
-      if (!validation.valid) {
-        return {
-          success: false,
-          error: validation.error || 'Invalid referral code',
-        };
-      }
-
-      const referralCode = validation.referralCode!;
-
-      // Check if this address has already redeemed
-      if (referralManager.hasAddressRedeemed(userAddress)) {
-        return {
-          success: false,
-          error: 'This wallet has already redeemed a referral code',
-          alreadyRedeemed: true,
-        };
-      }
-
-      // Initialize treasury
-      const treasury = new Treasury();
-      const treasuryLoaded = await treasury.loadFromEnvOrKeychain();
-
-      if (!treasuryLoaded) {
-        return {
-          success: false,
-          error: 'Treasury not configured. Contact support.',
-        };
-      }
-
-      // Check treasury balance
-      const hasFunds = await treasury.hasSufficientBalance(referralCode.amount);
-      if (!hasFunds) {
-        return {
-          success: false,
-          error: 'Treasury has insufficient balance. Please try again later.',
-        };
-      }
-
-      // Execute transfer
-      const result = await treasury.transfer(userAddress, referralCode.amount);
-
-      if (!result.success) {
-        await AuditLogger.logAction('referral_redemption_failed', {
-          code: code.toUpperCase(),
-          address: userAddress,
-          amount: referralCode.amount,
-          error: result.error,
-        });
-
-        return {
-          success: false,
-          error: result.error || 'Transfer failed',
-        };
-      }
-
-      // Mark code as redeemed
-      referralManager.markRedeemed(code, userAddress, result.txHash!);
+      // Call backend API
+      const result = await domainClient.redeemInviteCode(code, walletAddress);
 
       // Log success
       await AuditLogger.logAction('referral_redeemed', {
-        code: code.toUpperCase(),
-        address: userAddress,
-        amount: referralCode.amount,
-        txHash: result.txHash,
+        code: result.code,
+        address: walletAddress,
+        usdcAmount: result.usdc_amount,
+        ethAmount: result.eth_amount,
+        usdcTxHash: result.usdc_tx_hash,
+        ethTxHash: result.eth_tx_hash,
+      });
+
+      return result;
+    } catch (error) {
+      const message = (error as Error).message;
+
+      await AuditLogger.logAction('referral_redemption_failed', {
+        code: args.code,
+        error: message,
       });
 
       return {
-        success: true,
-        code: code.toUpperCase(),
-        amount: referralCode.amount,
-        currency: 'USDC',
-        txHash: result.txHash,
-        blockNumber: result.blockNumber,
-        recipientAddress: userAddress,
-        explorerUrl: Treasury.getExplorerUrl(result.txHash!),
-        message: `Successfully redeemed $${referralCode.amount} USDC! Check your balance with x402_check_balance.`,
-      };
-    } catch (error) {
-      return {
         success: false,
-        error: (error as Error).message,
+        error: message,
       };
     }
   }

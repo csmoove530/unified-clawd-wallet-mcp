@@ -34,12 +34,8 @@ src/
 │   ├── signing.ts            # RFC 9421 signatures
 │   └── types.ts              # TAP types
 ├── domains/
-│   ├── backend-client.ts     # HTTP client for backend
+│   ├── backend-client.ts     # HTTP client for backend (domains + invite codes)
 │   └── handlers.ts           # Domain tool handlers
-├── referral/
-│   ├── manager.ts            # Code generation/validation
-│   ├── treasury.ts           # USDC payout wallet
-│   └── types.ts              # Referral types
 ├── security/
 │   ├── limits.ts             # Spend limits
 │   └── audit.ts              # Audit logging
@@ -51,10 +47,12 @@ src/
 
 backend/                      # Python FastAPI
 ├── src/
-│   ├── main.py              # API endpoints
+│   ├── main.py              # API endpoints (domains + invite redemption)
 │   ├── porkbun.py           # Porkbun API client
 │   ├── payments.py          # USDC payment verification
-│   └── database.py          # SQLite/PostgreSQL
+│   ├── treasury.py          # Treasury signing (USDC + ETH transfers)
+│   └── database.py          # SQLite/PostgreSQL (purchases, domains, invite_codes)
+├── seed_invites.sql          # 20 pre-generated invite codes (CL001–CL020)
 ├── Dockerfile
 └── railway.toml
 ```
@@ -68,7 +66,7 @@ backend/                      # Python FastAPI
 | Wallet | `x402_get_address` | `MCPTools.getAddress()` |
 | Wallet | `x402_transaction_history` | `MCPTools.transactionHistory()` |
 | Wallet | `x402_discover_services` | `MCPTools.discoverServices()` |
-| Referral | `x402_redeem_referral` | `MCPTools.redeemReferral()` |
+| Invite | `x402_redeem_referral` | `MCPTools.redeemReferral()` |
 | TAP | `tap_register_agent` | `MCPTools.registerAgent()` |
 | TAP | `tap_verify_identity` | `MCPTools.verifyIdentity()` |
 | TAP | `tap_get_status` | `MCPTools.getTapStatus()` |
@@ -132,7 +130,6 @@ type AuditAction =
 CLAWD_BACKEND_URL=https://clawd-domain-backend-production.up.railway.app
 CLAWD_TAP_REGISTRY=https://tap-registry.visa.com/v1
 CLAWD_TAP_MOCK_MODE=true
-CLAWD_TREASURY_PRIVATE_KEY=0x...  # For referral payouts
 ```
 
 ### Backend (Railway)
@@ -141,6 +138,9 @@ CLAWD_TREASURY_PRIVATE_KEY=0x...  # For referral payouts
 PORKBUN_API_KEY=pk1_...
 PORKBUN_SECRET=sk1_...
 TREASURY_ADDRESS=0x...
+TREASURY_PRIVATE_KEY=0x...       # Signs invite code payouts
+INVITE_USDC_AMOUNT=1.0           # USDC per invite
+INVITE_ETH_AMOUNT=0.001          # ETH per invite (for gas)
 PUBLIC_URL=https://clawd-domain-backend-production.up.railway.app
 DATABASE_URL=sqlite:////tmp/clawd_domains.db
 ENVIRONMENT=production
@@ -154,7 +154,7 @@ ENVIRONMENT=production
 | `No wallet found in keychain` | Keychain access | Check OS permissions |
 | Domain tools fail | Backend unreachable | Check `CLAWD_BACKEND_URL` |
 | TAP errors | No mock mode | Set `CLAWD_TAP_MOCK_MODE=true` |
-| Referral fails | No treasury | Set `CLAWD_TREASURY_PRIVATE_KEY` |
+| Invite fails | Backend treasury not configured | Set `TREASURY_PRIVATE_KEY` in backend env |
 
 ## Testing Changes
 
@@ -177,5 +177,5 @@ uvicorn src.main:app --port 8402 --reload
 | Config | `~/.clawd/config.json` |
 | Audit log | `~/.clawd/audit.log` |
 | TAP credentials | `~/.clawd/tap/` |
-| Referral codes | `~/.clawd/referral/codes.json` |
+| Invite codes | Backend SQLite `invite_codes` table |
 | Transaction history | `~/.clawd/history.json` |

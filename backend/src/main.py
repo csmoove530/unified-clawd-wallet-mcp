@@ -15,11 +15,18 @@ from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from web3.exceptions import Web3Exception
 
 from . import config
 from .porkbun import porkbun
 from .payments import verifier
 from . import database as db
+from .treasury import (
+    TreasurySender,
+    TreasuryNotConfiguredError,
+    InsufficientBalanceError,
+    TransferError,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -186,6 +193,30 @@ class DNSRecordDelete(BaseModel):
     @classmethod
     def validate_wallet(cls, v):
         return validate_wallet_address(v)
+
+
+class InviteRedeemRequest(BaseModel):
+    """Request to redeem an invite code."""
+    code: str = Field(..., min_length=1, max_length=20)
+    wallet_address: str = Field(..., min_length=42, max_length=42)
+
+    @field_validator("wallet_address")
+    @classmethod
+    def validate_wallet(cls, v):
+        return validate_wallet_address(v)
+
+
+class InviteRedeemResponse(BaseModel):
+    """Response from invite code redemption."""
+    success: bool
+    code: str
+    usdc_amount: float
+    eth_amount: float
+    usdc_tx_hash: str
+    eth_tx_hash: str
+    recipient_address: str
+    explorer_url: str
+    message: str
 
 
 # Health check
@@ -639,6 +670,83 @@ async def get_purchase(purchase_id: str, wallet: str):
         "expires_at": purchase["expires_at"],
     }
     return safe_purchase
+
+
+# ============================================================================
+# INVITE CODE ENDPOINT
+# ============================================================================
+
+@app.post("/invite/redeem", response_model=InviteRedeemResponse)
+@limiter.limit(config.RATE_LIMIT_INVITE)
+async def redeem_invite_code(req: InviteRedeemRequest, request: Request):
+    """Redeem an invite code for USDC + ETH."""
+    code = req.code.strip().upper()
+    wallet = req.wallet_address.lower()
+
+    # 1. Look up code
+    invite = await db.get_invite_code(code)
+    if not invite:
+        raise HTTPException(404, "Invalid invite code")
+
+    # 2. Check active
+    if not invite["is_active"]:
+        raise HTTPException(410, "This invite code is no longer active")
+
+    # 3. Check already redeemed
+    if invite["redeemed_at"] is not None:
+        raise HTTPException(409, "This invite code has already been redeemed")
+
+    # 4. Check expiry
+    if invite["expires_at"]:
+        expires = datetime.fromisoformat(invite["expires_at"])
+        if datetime.utcnow() > expires:
+            raise HTTPException(410, "This invite code has expired")
+
+    # 5. One redemption per wallet
+    if await db.has_wallet_redeemed_invite(wallet):
+        raise HTTPException(409, "This wallet has already redeemed an invite code")
+
+    # 6. Send transfers
+    usdc_amount = invite["amount_usdc"]
+    eth_amount = invite["amount_eth"]
+
+    try:
+        treasury = TreasurySender()
+    except TreasuryNotConfiguredError:
+        logger.error("Treasury not configured for invite redemption")
+        raise HTTPException(500, "Treasury not configured. Contact support.")
+
+    try:
+        result = treasury.send_invite_payout(wallet, usdc_amount, eth_amount)
+    except InsufficientBalanceError as e:
+        logger.error(f"Insufficient treasury balance: {e}")
+        raise HTTPException(503, "Insufficient treasury balance. Please try again later.")
+    except (TransferError, Web3Exception) as e:
+        logger.error(f"Transfer failed for invite {code}: {config.sanitize_error(e)}")
+        raise HTTPException(500, "Transfer failed. Please try again.")
+
+    # 7. Mark redeemed
+    marked = await db.mark_invite_redeemed(
+        code, wallet, result["usdc_tx_hash"], result["eth_tx_hash"]
+    )
+    if not marked:
+        # Race condition: someone else redeemed between our check and now
+        logger.warning(f"Race condition on invite code {code}")
+        raise HTTPException(409, "This invite code has already been redeemed")
+
+    explorer_url = f"https://basescan.org/address/{wallet}"
+
+    return InviteRedeemResponse(
+        success=True,
+        code=code,
+        usdc_amount=usdc_amount,
+        eth_amount=eth_amount,
+        usdc_tx_hash=result["usdc_tx_hash"],
+        eth_tx_hash=result["eth_tx_hash"],
+        recipient_address=wallet,
+        explorer_url=explorer_url,
+        message=f"Successfully redeemed! You received ${usdc_amount:.2f} USDC and {eth_amount} ETH for gas.",
+    )
 
 
 # ============================================================================

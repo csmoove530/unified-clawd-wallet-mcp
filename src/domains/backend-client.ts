@@ -65,6 +65,18 @@ export interface AuthCodeResponse {
   dashboard_url?: string;
 }
 
+export interface InviteRedeemResponse {
+  success: boolean;
+  code: string;
+  usdc_amount: number;
+  eth_amount: number;
+  usdc_tx_hash: string;
+  eth_tx_hash: string;
+  recipient_address: string;
+  explorer_url: string;
+  message: string;
+}
+
 /**
  * Client for domain marketplace backend API
  */
@@ -249,6 +261,16 @@ export class DomainBackendClient {
    */
   async getAuthCode(domain: string, wallet: string): Promise<AuthCodeResponse> {
     return this.request(`/domains/${domain}/auth-code?wallet=${wallet}`, 'GET');
+  }
+
+  /**
+   * Redeem an invite code for USDC + ETH
+   */
+  async redeemInviteCode(code: string, walletAddress: string): Promise<InviteRedeemResponse> {
+    return this.request<InviteRedeemResponse>('/invite/redeem', 'POST', {
+      code,
+      wallet_address: walletAddress,
+    });
   }
 
   /**
