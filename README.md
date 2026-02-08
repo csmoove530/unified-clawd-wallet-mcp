@@ -14,7 +14,22 @@ cd unified-clawd-wallet-mcp
 npm install && npm run build
 ```
 
-### 2. Add to Claude Code
+### 2. Initialize your wallet
+
+Create a new wallet (key in OS keychain, config at `~/.clawd/config.json`):
+
+```bash
+# Option A: use the CLI (after npm link, see below)
+clawd init
+
+# Option B: run init via npm (no global install)
+npm run init
+```
+
+To use the `clawd` command from any directory, run once from the project: `npm link`.  
+Initialization is **idempotent**: running `clawd init` again does nothing unless you pass `--force` (which overwrites the existing wallet).
+
+### 3. Add to Claude Code
 
 Add to `~/.claude.json`:
 
@@ -33,7 +48,7 @@ Add to `~/.claude.json`:
 }
 ```
 
-### 3. Restart Claude Code and Try It
+### 4. Restart Claude Code and Try It
 
 ```
 You: "Check my wallet balance"
@@ -237,8 +252,8 @@ Returns:
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `Configuration not found` | Wallet not initialized | First use creates wallet automatically |
-| `No wallet found in keychain` | Keychain access failed | Check OS keychain permissions |
+| `Configuration not found` | Wallet not initialized | Run `clawd init` or `npm run init` (see Quick Start) |
+| `No wallet found in keychain` | Wallet not initialized or keychain denied | Run `clawd init` or `npm run init`; check OS keychain permissions |
 | `Insufficient balance` | Not enough USDC | Fund wallet or redeem referral code |
 | `Transaction failed` | Network or gas issue | Retry; check Base network status |
 
@@ -366,6 +381,11 @@ ENVIRONMENT=production
 ```bash
 # Build
 npm run build
+
+# Initialize wallet (creates key in keychain + ~/.clawd/config.json)
+npm run init
+# Or, after npm link: clawd init
+# Use clawd init --force to overwrite an existing wallet
 
 # Watch mode
 npm run dev
