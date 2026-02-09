@@ -15,7 +15,7 @@ node dist/mcp-server/index.js  # Run server
 ```
 src/
 ├── mcp-server/
-│   ├── index.ts              # MCP server entry (19 tools)
+│   ├── index.ts              # MCP server entry (27 tools)
 │   ├── tools.ts              # Tool implementations
 │   └── tool-definitions.ts   # Tool schemas
 ├── wallet/
@@ -36,6 +36,14 @@ src/
 ├── domains/
 │   ├── backend-client.ts     # HTTP client for backend
 │   └── handlers.ts           # Domain tool handlers
+├── canton/
+│   ├── client.ts             # Canton Wallet SDK wrapper
+│   ├── holdings.ts           # CIP-56 token holdings queries
+│   ├── transfer.ts           # CIP-56 transfer execution
+│   ├── party.ts              # Party management and info
+│   ├── keychain.ts           # Canton party credentials storage
+│   ├── types.ts              # Canton-specific types
+│   └── index.ts              # Module exports
 ├── referral/
 │   ├── manager.ts            # Code generation/validation
 │   ├── treasury.ts           # USDC payout wallet
@@ -45,7 +53,7 @@ src/
 │   └── audit.ts              # Audit logging
 ├── config/
 │   ├── manager.ts            # Config management
-│   └── schema.ts             # Zod validation
+│   └── schema.ts             # Zod validation (includes CantonConfigSchema)
 └── types/
     └── index.ts              # Shared types
 
@@ -59,7 +67,7 @@ backend/                      # Python FastAPI
 └── railway.toml
 ```
 
-## All 21 MCP Tools
+## All 27 MCP Tools
 
 | Category | Tool | Handler |
 |----------|------|---------|
@@ -84,6 +92,12 @@ backend/                      # Python FastAPI
 | Domains | `clawd_dns_delete` | `MCPTools.dnsDelete()` |
 | Domains | `clawd_domain_nameservers` | `MCPTools.domainNameservers()` |
 | Domains | `clawd_domain_auth_code` | `MCPTools.domainAuthCode()` |
+| Canton | `canton_check_balance` | `MCPTools.cantonCheckBalance()` |
+| Canton | `canton_list_holdings` | `MCPTools.cantonListHoldings()` |
+| Canton | `canton_get_party_info` | `MCPTools.cantonGetPartyInfo()` |
+| Canton | `canton_configure` | `MCPTools.cantonConfigure()` |
+| Canton | `canton_transfer` | `MCPTools.cantonTransfer()` |
+| Canton | `canton_transaction_history` | `MCPTools.cantonTransactionHistory()` |
 
 ## Key Patterns
 
@@ -115,6 +129,23 @@ Enabled when:
 
 Mock mode skips real registry calls, returns simulated responses.
 
+### Canton Network Integration
+
+Canton operates differently from EVM chains:
+- Party identity is hosted by validator (not local keypair)
+- Uses CIP-56 compliant token holdings (UTXOs)
+- DevNet endpoints are public and use HMAC authentication
+
+Configure Canton with:
+```typescript
+await MCPTools.cantonConfigure({
+  partyId: 'participant::namespace::identifier',
+  displayName: 'My Canton Party',
+});
+```
+
+Canton credentials stored in OS keychain under `clawd-canton` service.
+
 ### Audit Actions
 
 ```typescript
@@ -135,6 +166,12 @@ CLAWD_BACKEND_URL=https://clawd-domain-backend-production.up.railway.app
 CLAWD_TAP_REGISTRY=https://tap-registry.visa.com/v1
 CLAWD_TAP_MOCK_MODE=true
 CLAWD_TREASURY_PRIVATE_KEY=0x...  # For referral payouts
+
+# Canton Network (optional - can also configure via canton_configure tool)
+CANTON_PARTY_ID=participant::namespace::identifier
+CANTON_NETWORK=devnet
+CANTON_VALIDATOR_URL=https://canton-devnet.digitalasset.com/api/v1
+CANTON_LEDGER_URL=https://canton-devnet.digitalasset.com/ledger/v1
 ```
 
 ### Backend (Railway)
@@ -157,6 +194,8 @@ ENVIRONMENT=production
 | Domain tools fail | Backend unreachable | Check `CLAWD_BACKEND_URL` |
 | TAP errors | No mock mode | Set `CLAWD_TAP_MOCK_MODE=true` |
 | Referral fails | No treasury | Set `CLAWD_TREASURY_PRIVATE_KEY` |
+| Canton not configured | Party ID not set | Run `canton_configure` with party ID |
+| Canton connection failed | DevNet unavailable | Uses mock mode automatically on DevNet |
 
 ## Testing Changes
 
@@ -181,3 +220,4 @@ uvicorn src.main:app --port 8402 --reload
 | TAP credentials | `~/.clawd/tap/` |
 | Referral codes | `~/.clawd/referral/codes.json` |
 | Transaction history | `~/.clawd/history.json` |
+| Canton credentials | OS Keychain (`clawd-canton` service) |

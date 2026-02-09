@@ -1,12 +1,13 @@
 /**
  * MCP Tool definitions for unified CLAWD Wallet
  *
- * All 21 tools:
+ * All 27 tools:
  * - Wallet (5): x402_payment_request, x402_check_balance, x402_get_address, x402_transaction_history, x402_discover_services
  * - Security (2): x402_get_spending_controls, x402_update_spending_controls
  * - Referral (1): x402_redeem_referral
  * - TAP (4): tap_register_agent, tap_verify_identity, tap_get_status, tap_revoke
  * - Domains (9): clawd_domain_search, clawd_domain_purchase, clawd_domain_confirm, clawd_domain_list, clawd_dns_list, clawd_dns_create, clawd_dns_delete, clawd_domain_nameservers, clawd_domain_auth_code
+ * - Canton (6): canton_check_balance, canton_list_holdings, canton_get_party_info, canton_configure, canton_transfer, canton_transaction_history
  */
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -470,6 +471,110 @@ export const TOOLS: Tool[] = [
         },
       },
       required: ['domain', 'wallet'],
+    },
+  },
+
+  // ============================================================================
+  // CANTON NETWORK TOOLS (6)
+  // ============================================================================
+  {
+    name: 'canton_check_balance',
+    description:
+      'Check Canton Coin (CC) balance on Canton Network DevNet. ' +
+      'Returns the configured party\'s CC balance.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'canton_list_holdings',
+    description:
+      'List all CIP-56 token holdings for your Canton party. ' +
+      'Shows all tokens held including Canton Coin (CC) and any other CIP-56 compliant tokens.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'canton_get_party_info',
+    description:
+      'Get Canton party information including party ID, display name, validator URL, and connection status.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'canton_configure',
+    description:
+      'Configure Canton Network connection with your party ID. ' +
+      'This connects your wallet to Canton DevNet for token operations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        partyId: {
+          type: 'string',
+          description: 'Your Canton party identifier (e.g., "participant::namespace::identifier")',
+        },
+        displayName: {
+          type: 'string',
+          description: 'Optional display name for this party',
+        },
+        authToken: {
+          type: 'string',
+          description: 'Optional authentication token for the validator',
+        },
+        validatorUrl: {
+          type: 'string',
+          description: 'Optional custom validator API URL (uses DevNet default if not specified)',
+        },
+        ledgerApiUrl: {
+          type: 'string',
+          description: 'Optional custom Ledger API URL (uses DevNet default if not specified)',
+        },
+      },
+      required: ['partyId'],
+    },
+  },
+  {
+    name: 'canton_transfer',
+    description:
+      'Transfer Canton tokens to another party on DevNet. ' +
+      'Supports Canton Coin (CC) and other CIP-56 compliant tokens.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        recipient: {
+          type: 'string',
+          description: 'Recipient party ID',
+        },
+        amount: {
+          type: 'string',
+          description: 'Amount to transfer (e.g., "10.5" for 10.5 CC)',
+        },
+        tokenId: {
+          type: 'string',
+          description: 'Token/asset ID. Defaults to Canton Coin (CC) if not specified.',
+        },
+      },
+      required: ['recipient', 'amount'],
+    },
+  },
+  {
+    name: 'canton_transaction_history',
+    description:
+      'View recent Canton transfer history for your party. ' +
+      'Shows both sent and received transfers.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Number of transactions to return (default: 10)',
+        },
+      },
     },
   },
 ];

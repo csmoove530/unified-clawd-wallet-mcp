@@ -29,7 +29,9 @@
     "domains",
     "dns",
     "tap",
-    "identity"
+    "identity",
+    "canton",
+    "daml"
   ],
   "author": "CLAWD Contributors",
   "license": "Apache-2.0",

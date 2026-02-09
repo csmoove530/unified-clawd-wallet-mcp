@@ -23,10 +23,21 @@ export const MCPConfigSchema = z.object({
   logLevel: z.enum(['debug', 'info', 'warn', 'error'])
 });
 
+export const CantonConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  partyId: z.string().optional(),
+  displayName: z.string().optional(),
+  network: z.enum(['devnet', 'testnet', 'mainnet']).default('devnet'),
+  validatorUrl: z.string().url().optional(),
+  ledgerApiUrl: z.string().url().optional()
+});
+
 export const ClawdConfigSchema = z.object({
   wallet: WalletConfigSchema,
   security: SecurityConfigSchema,
-  mcp: MCPConfigSchema
+  mcp: MCPConfigSchema,
+  canton: CantonConfigSchema.optional()
 });
 
 export type ClawdConfigType = z.infer<typeof ClawdConfigSchema>;
+export type CantonConfigType = z.infer<typeof CantonConfigSchema>;

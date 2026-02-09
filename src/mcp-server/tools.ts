@@ -27,6 +27,16 @@ import {
   handleAuthCode,
 } from '../domains/handlers.js';
 
+// Canton modules
+import {
+  CantonClient,
+  HoldingsManager,
+  TransferManager,
+  PartyManager,
+  CANTON_COIN,
+  type CantonConfig,
+} from '../canton/index.js';
+
 export class MCPTools {
   // ============================================================================
   // WALLET TOOLS
@@ -708,5 +718,361 @@ export class MCPTools {
    */
   static async domainAuthCode(args: { domain: string; wallet: string }): Promise<string> {
     return handleAuthCode(args);
+  }
+
+  // ============================================================================
+  // CANTON TOOLS
+  // ============================================================================
+
+  /**
+   * Get Canton configuration from loaded config, with defaults
+   */
+  private static getCantonConfig(config: any): CantonConfig {
+    return {
+      enabled: config.canton?.enabled ?? false,
+      partyId: config.canton?.partyId,
+      displayName: config.canton?.displayName,
+      network: config.canton?.network ?? 'devnet',
+      validatorUrl: config.canton?.validatorUrl,
+      ledgerApiUrl: config.canton?.ledgerApiUrl,
+    };
+  }
+
+  /**
+   * Tool: canton_check_balance
+   * Check Canton Coin (CC) balance on Canton Network
+   */
+  static async cantonCheckBalance(): Promise<any> {
+    try {
+      const config = await ConfigManager.loadConfig();
+      const cantonConfig = this.getCantonConfig(config);
+
+      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+        return {
+          success: false,
+          error: 'Canton not configured. Use canton_configure to set up your party ID first.',
+        };
+      }
+
+      const client = new CantonClient(cantonConfig);
+      await client.initialize();
+
+      const balance = await client.getBalance();
+      const formattedBalance = this.formatCantonAmount(balance.balance, balance.decimals);
+
+      return {
+        success: true,
+        partyId: cantonConfig.partyId,
+        network: cantonConfig.network,
+        balance: {
+          amount: balance.balance,
+          symbol: balance.symbol,
+          decimals: balance.decimals,
+          formatted: `${formattedBalance} ${balance.symbol}`,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  /**
+   * Tool: canton_list_holdings
+   * List all CIP-56 token holdings
+   */
+  static async cantonListHoldings(): Promise<any> {
+    try {
+      const config = await ConfigManager.loadConfig();
+      const cantonConfig = this.getCantonConfig(config);
+
+      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+        return {
+          success: false,
+          error: 'Canton not configured. Use canton_configure to set up your party ID first.',
+        };
+      }
+
+      const holdingsManager = new HoldingsManager(cantonConfig);
+      const result = await holdingsManager.getHoldings();
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Format holdings for display
+      const formattedHoldings = result.holdings.map((h) => ({
+        ...h,
+        formatted: `${this.formatCantonAmount(h.amount, 6)} ${h.symbol}`,
+      }));
+
+      return {
+        success: true,
+        partyId: result.partyId,
+        network: result.network,
+        holdings: formattedHoldings,
+        totalHoldings: result.totalHoldings,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  /**
+   * Tool: canton_get_party_info
+   * Get Canton party information
+   */
+  static async cantonGetPartyInfo(): Promise<any> {
+    try {
+      const config = await ConfigManager.loadConfig();
+      const cantonConfig = this.getCantonConfig(config);
+
+      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+        return {
+          success: false,
+          configured: false,
+          error: 'Canton not configured. Use canton_configure to set up your party ID.',
+        };
+      }
+
+      const partyManager = new PartyManager(cantonConfig);
+      const result = await partyManager.getPartyInfo();
+
+      if (!result.success) {
+        return result;
+      }
+
+      return {
+        success: true,
+        configured: true,
+        partyInfo: result.partyInfo,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  /**
+   * Tool: canton_configure
+   * Configure Canton Network connection
+   */
+  static async cantonConfigure(args: {
+    partyId: string;
+    displayName?: string;
+    authToken?: string;
+    validatorUrl?: string;
+    ledgerApiUrl?: string;
+  }): Promise<any> {
+    try {
+      const { partyId, displayName, authToken, validatorUrl, ledgerApiUrl } = args;
+
+      // Load current config
+      const config = await ConfigManager.loadConfig();
+
+      // Create Canton config
+      const cantonConfig: CantonConfig = {
+        enabled: false, // Will be enabled after successful configuration
+        partyId: undefined,
+        network: 'devnet',
+        ...config.canton,
+      };
+
+      // Configure party
+      const partyManager = new PartyManager(cantonConfig);
+      const result = await partyManager.configure(partyId, {
+        displayName,
+        authToken,
+        validatorUrl,
+        ledgerApiUrl,
+      });
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Update config with Canton settings
+      config.canton = {
+        enabled: true,
+        partyId: result.partyId,
+        displayName: displayName || `Canton Party (${partyId.slice(0, 8)})`,
+        network: 'devnet',
+        validatorUrl: result.validatorUrl,
+        ledgerApiUrl: result.ledgerApiUrl,
+      };
+
+      await ConfigManager.saveConfig(config);
+
+      await AuditLogger.logAction('config_changed', {
+        section: 'canton',
+        action: 'configured',
+        partyId: result.partyId,
+        network: 'devnet',
+      });
+
+      return {
+        success: true,
+        partyId: result.partyId,
+        network: 'devnet',
+        validatorUrl: result.validatorUrl,
+        ledgerApiUrl: result.ledgerApiUrl,
+        message: result.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  /**
+   * Tool: canton_transfer
+   * Transfer Canton tokens to another party
+   */
+  static async cantonTransfer(args: {
+    recipient: string;
+    amount: string;
+    tokenId?: string;
+  }): Promise<any> {
+    try {
+      const { recipient, amount, tokenId } = args;
+
+      const config = await ConfigManager.loadConfig();
+      const cantonConfig = this.getCantonConfig(config);
+
+      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+        return {
+          success: false,
+          error: 'Canton not configured. Use canton_configure to set up your party ID first.',
+        };
+      }
+
+      const transferManager = new TransferManager(cantonConfig);
+
+      // If no tokenId specified, transfer Canton Coin
+      let result;
+      if (tokenId) {
+        await transferManager.initialize();
+        // Parse amount to base units (assuming 6 decimals)
+        const baseUnits = this.parseCantonAmount(amount, 6);
+        result = await transferManager.transfer(recipient, baseUnits, tokenId);
+      } else {
+        result = await transferManager.transferCC(recipient, amount);
+      }
+
+      if (result.success) {
+        await AuditLogger.logAction('payment_executed', {
+          network: 'canton',
+          type: 'transfer',
+          transferId: result.transferId,
+          recipient: result.recipient,
+          amount: result.amount,
+          symbol: result.tokenSymbol,
+        });
+      }
+
+      return {
+        success: result.success,
+        transferId: result.transferId,
+        recipient: result.recipient,
+        amount: amount,
+        tokenSymbol: result.tokenSymbol,
+        status: result.status,
+        timestamp: result.timestamp,
+        error: result.error,
+        message: result.success
+          ? `Successfully transferred ${amount} ${result.tokenSymbol} to ${recipient}`
+          : result.error,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  /**
+   * Tool: canton_transaction_history
+   * View recent Canton transfer history
+   */
+  static async cantonTransactionHistory(limit: number = 10): Promise<any> {
+    try {
+      const config = await ConfigManager.loadConfig();
+      const cantonConfig = this.getCantonConfig(config);
+
+      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+        return {
+          success: false,
+          error: 'Canton not configured. Use canton_configure to set up your party ID first.',
+        };
+      }
+
+      const client = new CantonClient(cantonConfig);
+      await client.initialize();
+
+      const transactions = await client.getTransactionHistory(limit);
+
+      return {
+        success: true,
+        partyId: cantonConfig.partyId,
+        network: cantonConfig.network,
+        transactions: transactions.map((tx) => ({
+          ...tx,
+          formattedAmount: `${this.formatCantonAmount(tx.amount, 6)} ${tx.tokenSymbol}`,
+          formattedTimestamp: new Date(tx.timestamp).toISOString(),
+        })),
+        count: transactions.length,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  /**
+   * Format Canton amount from base units to human-readable
+   */
+  private static formatCantonAmount(baseUnits: string, decimals: number): string {
+    const value = BigInt(baseUnits);
+    const divisor = BigInt(10 ** decimals);
+    const integerPart = value / divisor;
+    const fractionalPart = value % divisor;
+
+    const fractionalStr = fractionalPart.toString().padStart(decimals, '0');
+    const trimmedFractional = fractionalStr.replace(/0+$/, '');
+
+    if (trimmedFractional) {
+      return `${integerPart}.${trimmedFractional}`;
+    }
+    return integerPart.toString();
+  }
+
+  /**
+   * Parse human-readable Canton amount to base units
+   */
+  private static parseCantonAmount(amount: string, decimals: number): string {
+    const parts = amount.split('.');
+    const integerPart = parts[0] || '0';
+    let fractionalPart = parts[1] || '';
+
+    if (fractionalPart.length < decimals) {
+      fractionalPart = fractionalPart.padEnd(decimals, '0');
+    } else if (fractionalPart.length > decimals) {
+      fractionalPart = fractionalPart.slice(0, decimals);
+    }
+
+    const combined = integerPart + fractionalPart;
+    return combined.replace(/^0+/, '') || '0';
   }
 }

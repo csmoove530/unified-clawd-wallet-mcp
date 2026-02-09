@@ -25,6 +25,14 @@ export interface ClawdConfig {
   wallet: WalletConfig;
   security: SecurityConfig;
   mcp: MCPConfig;
+  canton?: {
+    enabled: boolean;
+    partyId?: string;
+    displayName?: string;
+    network: 'devnet' | 'testnet' | 'mainnet';
+    validatorUrl?: string;
+    ledgerApiUrl?: string;
+  };
 }
 
 export interface Transaction {
@@ -134,3 +142,19 @@ export interface BalanceInfo {
  * TAP (Trusted Agent Protocol) types
  */
 export type { TAPCredentials, TAPIdentityLevel, TAPStatus, TAPHeaders } from '../tap/types.js';
+
+/**
+ * Canton Network types
+ */
+export type {
+  CantonNetwork,
+  CantonConfig,
+  CantonHolding,
+  CantonPartyInfo,
+  CantonTransferResult,
+  CantonTransaction,
+  CantonBalanceResult,
+  CantonHoldingsResult,
+  CantonConfigureResult,
+  CantonHistoryResult,
+} from '../canton/types.js';

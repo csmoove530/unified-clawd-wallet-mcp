@@ -3,12 +3,13 @@
 /**
  * Unified CLAWD Wallet MCP Server
  *
- * Provides 21 tools for:
+ * Provides 27 tools for:
  * - x402 payments (5 tools)
  * - Security/Spending controls (2 tools)
  * - Referral (1 tool)
  * - TAP identity verification (4 tools)
  * - Domain registration and DNS management (9 tools)
+ * - Canton Network (6 tools)
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -216,6 +217,57 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [{ type: 'text', text: result }],
         };
 
+      // Canton Network tools
+      case 'canton_check_balance':
+        result = await MCPTools.cantonCheckBalance();
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
+      case 'canton_list_holdings':
+        result = await MCPTools.cantonListHoldings();
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
+      case 'canton_get_party_info':
+        result = await MCPTools.cantonGetPartyInfo();
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
+      case 'canton_configure':
+        result = await MCPTools.cantonConfigure(
+          args as {
+            partyId: string;
+            displayName?: string;
+            authToken?: string;
+            validatorUrl?: string;
+            ledgerApiUrl?: string;
+          }
+        );
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
+      case 'canton_transfer':
+        result = await MCPTools.cantonTransfer(
+          args as {
+            recipient: string;
+            amount: string;
+            tokenId?: string;
+          }
+        );
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
+      case 'canton_transaction_history':
+        result = await MCPTools.cantonTransactionHistory(args?.limit as number);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -237,7 +289,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('CLAWD Wallet MCP server running (21 tools available)');
+  console.error('CLAWD Wallet MCP server running (27 tools available)');
 }
 
 main().catch((error) => {
