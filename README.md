@@ -169,9 +169,49 @@ Returns:
 }
 ```
 
+### Check Your Canton Balance
+
+```
+You: "Check my Canton balance"
+```
+
+Returns:
+```json
+{
+  "success": true,
+  "partyId": "participant::devnet::my-party",
+  "network": "devnet",
+  "balance": {
+    "amount": "1000000000",
+    "symbol": "CC",
+    "decimals": 6,
+    "formatted": "1000 CC"
+  }
+}
+```
+
+### Transfer Canton Tokens
+
+```
+You: "Transfer 10 CC to participant::devnet::recipient-party"
+```
+
+Returns:
+```json
+{
+  "success": true,
+  "transferId": "tx-1234567890-abcdef",
+  "recipient": "participant::devnet::recipient-party",
+  "amount": "10",
+  "tokenSymbol": "CC",
+  "status": "pending",
+  "message": "Successfully transferred 10 CC to participant::devnet::recipient-party"
+}
+```
+
 ---
 
-## All 19 Tools
+## All 27 Tools
 
 ### Wallet Tools (5)
 
@@ -212,6 +252,17 @@ Returns:
 | `clawd_domain_nameservers` | Update nameservers | `"Use Cloudflare nameservers for myapp.dev"` |
 | `clawd_domain_auth_code` | Get transfer auth code | `"Get auth code to transfer myapp.dev"` |
 
+### Canton Network Tools (6)
+
+| Tool | Description | Example |
+|------|-------------|---------|
+| `canton_configure` | Set up Canton party ID | `"Configure Canton with party ID participant::devnet::my-party"` |
+| `canton_check_balance` | Check Canton Coin (CC) balance | `"What's my Canton balance?"` |
+| `canton_list_holdings` | List all CIP-56 token holdings | `"Show my Canton token holdings"` |
+| `canton_get_party_info` | Get party configuration | `"Show my Canton party info"` |
+| `canton_transfer` | Send tokens to another party | `"Transfer 10 CC to participant::devnet::recipient"` |
+| `canton_transaction_history` | View transfer history | `"Show my Canton transactions"` |
+
 ---
 
 ## Common Workflows
@@ -242,6 +293,16 @@ Returns:
 1. "Find AI image services"              → Discover services
 2. "Generate an image of a sunset"       → Pays automatically via x402
 3. "Show my recent transactions"         → Review payments
+```
+
+### Canton Network Setup
+
+```
+1. "Configure Canton with party ID participant::devnet::my-party"  → Connect to DevNet
+2. "Check my Canton balance"                                        → Verify connection (1000 CC on DevNet)
+3. "Show my Canton holdings"                                        → List all CIP-56 tokens
+4. "Transfer 10 CC to participant::devnet::recipient"               → Send tokens
+5. "Show my Canton transactions"                                    → Verify transfer
 ```
 
 ---
@@ -284,6 +345,15 @@ Returns:
 | `Payment verification failed` | tx_hash invalid | Check transaction completed on Base |
 | `Not authorized` | Wallet doesn't own domain | Use wallet that purchased domain |
 | `Backend connection failed` | Backend unreachable | Check `CLAWD_BACKEND_URL` |
+
+### Canton Errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Canton not configured` | Party ID not set | Run `canton_configure` with your party ID |
+| `Invalid recipient party ID format` | Bad party ID format | Use format `participant::namespace::identifier` |
+| `Insufficient balance for transfer` | Not enough tokens | Check balance with `canton_check_balance` |
+| `Canton DevNet configured (mock mode)` | DevNet endpoints unavailable | Normal for testing; uses simulated data |
 
 ---
 
@@ -344,21 +414,22 @@ ENVIRONMENT=production
                           │ MCP Protocol (stdio)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  CLAWD Wallet MCP Server (19 tools)                         │
+│  CLAWD Wallet MCP Server (27 tools)                         │
 │  ├─ Wallet: balance, payments, history                      │
 │  ├─ Referral: code redemption                               │
 │  ├─ TAP: identity verification                              │
-│  └─ Domains: search, purchase, DNS                          │
-└──────────┬──────────────────────┬───────────────────────────┘
-           │                      │
-           │ USDC on Base         │ HTTPS
-           ▼                      ▼
-┌──────────────────┐    ┌────────────────────┐
-│  Base Network    │    │  Domain Backend    │
-│  (x402 services) │    │  (Railway/FastAPI) │
-└──────────────────┘    └─────────┬──────────┘
-                                  │
-                                  ▼
+│  ├─ Domains: search, purchase, DNS                          │
+│  └─ Canton: balance, holdings, transfers                    │
+└──────────┬──────────────────────┬──────────────┬────────────┘
+           │                      │              │
+           │ USDC on Base         │ HTTPS        │ Canton Ledger API
+           ▼                      ▼              ▼
+┌──────────────────┐    ┌────────────────┐    ┌────────────────┐
+│  Base Network    │    │ Domain Backend │    │  Canton DevNet │
+│  (x402 services) │    │ (Railway)      │    │  (CIP-56)      │
+└──────────────────┘    └───────┬────────┘    └────────────────┘
+                                │
+                                ▼
                         ┌────────────────────┐
                         │  Porkbun API       │
                         └────────────────────┘

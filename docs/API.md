@@ -1,6 +1,6 @@
 # CLAWD Wallet API Reference
 
-Complete reference for all 19 MCP tools.
+Complete reference for all 27 MCP tools.
 
 ---
 
@@ -749,6 +749,269 @@ Get the authorization/EPP code to transfer your domain.
   "domain": "myproject.dev",
   "auth_code": "Xy7#mN9@kL2$",
   "instructions": "Use this code to transfer your domain to another registrar. The code is valid for 14 days."
+}
+```
+
+---
+
+## Canton Network Tools
+
+### canton_configure
+
+Configure Canton Network connection with your party ID.
+
+**Input:**
+
+```json
+{
+  "partyId": "participant::devnet::my-party",
+  "displayName": "My Canton Party"
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `partyId` | string | Yes | Canton party identifier (e.g., `participant::namespace::id`) |
+| `displayName` | string | No | Display name for this party |
+| `authToken` | string | No | Authentication token for the validator |
+| `validatorUrl` | string | No | Custom validator API URL (uses DevNet default if not specified) |
+| `ledgerApiUrl` | string | No | Custom Ledger API URL (uses DevNet default if not specified) |
+
+**Output:**
+
+```json
+{
+  "success": true,
+  "partyId": "participant::devnet::my-party",
+  "network": "devnet",
+  "validatorUrl": "https://canton-devnet.digitalasset.com/api/v1",
+  "ledgerApiUrl": "https://canton-devnet.digitalasset.com/ledger/v1",
+  "message": "Canton configured successfully. Canton DevNet configured (mock mode)"
+}
+```
+
+---
+
+### canton_check_balance
+
+Check Canton Coin (CC) balance on Canton Network.
+
+**Input:**
+
+```json
+{}
+```
+
+No parameters required.
+
+**Output:**
+
+```json
+{
+  "success": true,
+  "partyId": "participant::devnet::my-party",
+  "network": "devnet",
+  "balance": {
+    "amount": "1000000000",
+    "symbol": "CC",
+    "decimals": 6,
+    "formatted": "1000 CC"
+  }
+}
+```
+
+**Output (Not Configured):**
+
+```json
+{
+  "success": false,
+  "error": "Canton not configured. Use canton_configure to set up your party ID first."
+}
+```
+
+---
+
+### canton_list_holdings
+
+List all CIP-56 token holdings for your Canton party.
+
+**Input:**
+
+```json
+{}
+```
+
+No parameters required.
+
+**Output:**
+
+```json
+{
+  "success": true,
+  "partyId": "participant::devnet::my-party",
+  "network": "devnet",
+  "holdings": [
+    {
+      "tokenId": "canton-coin",
+      "symbol": "CC",
+      "amount": "1000000000",
+      "registry": "devnet::canton-coin-registry",
+      "utxoCount": 1,
+      "formatted": "1000 CC"
+    }
+  ],
+  "totalHoldings": 1
+}
+```
+
+---
+
+### canton_get_party_info
+
+Get Canton party information including party ID, display name, and connection status.
+
+**Input:**
+
+```json
+{}
+```
+
+No parameters required.
+
+**Output (Configured):**
+
+```json
+{
+  "success": true,
+  "configured": true,
+  "partyInfo": {
+    "partyId": "participant::devnet::my-party",
+    "displayName": "My Canton Party",
+    "validatorUrl": "https://canton-devnet.digitalasset.com/api/v1",
+    "ledgerApiUrl": "https://canton-devnet.digitalasset.com/ledger/v1",
+    "network": "devnet",
+    "isConnected": true
+  }
+}
+```
+
+**Output (Not Configured):**
+
+```json
+{
+  "success": false,
+  "configured": false,
+  "error": "Canton not configured. Use canton_configure to set up your party ID."
+}
+```
+
+---
+
+### canton_transfer
+
+Transfer Canton tokens to another party.
+
+**Input:**
+
+```json
+{
+  "recipient": "participant::devnet::recipient-party",
+  "amount": "10.5",
+  "tokenId": "canton-coin"
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `recipient` | string | Yes | Recipient party ID |
+| `amount` | string | Yes | Amount to transfer (e.g., `"10.5"` for 10.5 CC) |
+| `tokenId` | string | No | Token/asset ID. Default: Canton Coin (`canton-coin`) |
+
+**Output (Success):**
+
+```json
+{
+  "success": true,
+  "transferId": "tx-1234567890-abcdef",
+  "recipient": "participant::devnet::recipient-party",
+  "amount": "10.5",
+  "tokenSymbol": "CC",
+  "status": "pending",
+  "timestamp": 1234567890000,
+  "message": "Successfully transferred 10.5 CC to participant::devnet::recipient-party"
+}
+```
+
+**Output (Insufficient Balance):**
+
+```json
+{
+  "success": false,
+  "transferId": "",
+  "recipient": "participant::devnet::recipient-party",
+  "amount": "10.5",
+  "tokenSymbol": "CC",
+  "status": "failed",
+  "timestamp": 1234567890000,
+  "error": "Insufficient balance for transfer"
+}
+```
+
+**Output (Invalid Recipient):**
+
+```json
+{
+  "success": false,
+  "transferId": "",
+  "recipient": "",
+  "amount": "10",
+  "tokenSymbol": "CC",
+  "status": "failed",
+  "timestamp": 1234567890000,
+  "error": "Invalid recipient party ID format"
+}
+```
+
+---
+
+### canton_transaction_history
+
+View recent Canton transfer history for your party.
+
+**Input:**
+
+```json
+{
+  "limit": 10
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `limit` | number | No | Number of transactions to return. Default: 10 |
+
+**Output:**
+
+```json
+{
+  "success": true,
+  "partyId": "participant::devnet::my-party",
+  "network": "devnet",
+  "transactions": [
+    {
+      "id": "tx-1234567890-abcdef",
+      "type": "send",
+      "counterparty": "participant::devnet::recipient-party",
+      "amount": "10500000",
+      "tokenSymbol": "CC",
+      "tokenId": "canton-coin",
+      "timestamp": 1234567890000,
+      "status": "confirmed",
+      "formattedAmount": "10.5 CC",
+      "formattedTimestamp": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "count": 1
 }
 ```
 
