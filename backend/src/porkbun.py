@@ -28,6 +28,15 @@ class PorkbunClient:
         """Return authentication fields for API requests."""
         return {"apikey": self.api_key, "secretapikey": self.secret}
 
+    async def ping(self) -> dict:
+        """Test API authentication and get account info."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{self.base_url}/ping",
+                json=self._auth_body(),
+            )
+            return resp.json()
+
     async def check_availability(self, domain: str) -> dict:
         """Check if a domain is available for registration."""
         if self.mock_mode:

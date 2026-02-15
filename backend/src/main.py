@@ -199,6 +199,17 @@ async def health():
     }
 
 
+# Debug endpoint to test Porkbun API connection
+@app.get("/debug/porkbun-ping")
+async def porkbun_ping():
+    """Test Porkbun API authentication."""
+    try:
+        result = await porkbun.ping()
+        return {"porkbun_response": result}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # Domain search with rate limiting
 @app.post("/search", response_model=SearchResponse)
 @limiter.limit(config.RATE_LIMIT_SEARCH)
