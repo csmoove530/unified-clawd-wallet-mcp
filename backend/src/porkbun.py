@@ -85,6 +85,9 @@ class PorkbunClient:
         if self.mock_mode:
             return self._mock_register(domain, years)
 
+        import logging
+        logger = logging.getLogger(__name__)
+
         # Get pricing if not provided (may hit rate limit)
         if price_dollars is None:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -94,10 +97,13 @@ class PorkbunClient:
                 )
                 price_data = price_resp.json()
 
+            logger.info(f"Porkbun checkDomain response for {domain}: {price_data}")
+
             if price_data.get("status") != "SUCCESS":
                 return {"status": "ERROR", "message": "Could not get pricing - rate limited or unavailable"}
 
             price_dollars = float(price_data.get("response", {}).get("price", 0))
+            logger.info(f"Extracted price for {domain}: ${price_dollars} -> {int(price_dollars * 100)} pennies")
 
         cost_pennies = int(price_dollars * 100)
 
@@ -122,6 +128,10 @@ class PorkbunClient:
             "country": reg.get("country", "US"),
         }
 
+        # Log request body (excluding secrets)
+        safe_body = {k: v for k, v in body.items() if k not in ('apikey', 'secretapikey')}
+        logger.info(f"Porkbun create request for {domain}: {safe_body}")
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{self.base_url}/domain/create/{domain}",
@@ -129,9 +139,6 @@ class PorkbunClient:
             )
             result = resp.json()
 
-            # Log the registration result for debugging
-            import logging
-            logger = logging.getLogger(__name__)
             logger.info(f"Porkbun registration result for {domain}: {result}")
 
             if result.get("status") == "SUCCESS":
