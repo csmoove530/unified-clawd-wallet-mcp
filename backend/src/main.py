@@ -427,10 +427,12 @@ async def x402_payment(purchase_id: str, request: Request):
             )
 
             if reg_result.get("status") != "SUCCESS":
+                porkbun_error = reg_result.get("message", "Unknown Porkbun error")
+                logger.error(f"Porkbun registration failed for {purchase['domain']}: {reg_result}")
                 await db.update_purchase(purchase_id, {"status": "registration_failed"})
                 return JSONResponse(
                     status_code=500,
-                    content={"error": "Domain registration failed. Please contact support."}
+                    content={"error": f"Domain registration failed: {porkbun_error}"}
                 )
 
             await db.update_purchase(purchase_id, {"status": "completed"})
@@ -530,8 +532,10 @@ async def complete_purchase(purchase_id: str):
         )
 
         if reg_result.get("status") != "SUCCESS":
+            porkbun_error = reg_result.get("message", "Unknown Porkbun error")
+            logger.error(f"Porkbun registration failed for {purchase['domain']}: {reg_result}")
             await db.update_purchase(purchase_id, {"status": "registration_failed"})
-            raise HTTPException(500, "Domain registration failed")
+            raise HTTPException(500, f"Domain registration failed: {porkbun_error}")
 
         await db.update_purchase(purchase_id, {"status": "completed"})
 
@@ -610,10 +614,12 @@ async def confirm_purchase(req: ConfirmRequest):
         )
 
         if reg_result.get("status") != "SUCCESS":
+            porkbun_error = reg_result.get("message", "Unknown Porkbun error")
+            logger.error(f"Porkbun registration failed for {purchase['domain']}: {reg_result}")
             await db.update_purchase(req.purchase_id, {"status": "registration_failed"})
             return ConfirmResponse(
                 status="registration_failed",
-                error="Domain registration failed",
+                error=f"Domain registration failed: {porkbun_error}",
                 mock_mode=config.MOCK_MODE,
             )
 
