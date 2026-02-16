@@ -359,16 +359,35 @@ Returns:
 
 ### Canton Network Setup
 
-**LocalNet** (Splice running; set `CANTON_USE_LOCALNET=true` in MCP env). See [CANTON_LOCALNET.md](CANTON_LOCALNET.md).
+**LocalNet** (Splice running; set `CANTON_USE_LOCALNET=true` in MCP env). To run the Docker stack so Canton tool calls work locally:
 
-```
-1. Start Splice LocalNet (docker compose, then ensure MCP server has CANTON_USE_LOCALNET=true)
-2. "Configure Canton: create a new party with display name test-wallet"  → Creates party, stores credentials
-3. "Check my Canton balance"                                           → 0 CC until you receive funds
-4. "List my Canton holdings"                                            → List CIP-56 tokens
-5. "Transfer 10 CC to <recipient-party-id>"                             → Send (need recipient + amount)
-6. "Show my Canton transactions"                                       → Verify history
-```
+1. **Download and start Splice LocalNet** (one-time):
+
+   ```bash
+   # Download bundle from https://github.com/digital-asset/decentralized-canton-sync/releases (e.g. 0.5.11_splice-node.tar.gz)
+   tar xzvf 0.5.11_splice-node.tar.gz
+
+   export LOCALNET_DIR=$PWD/splice-node/docker-compose/localnet
+   export IMAGE_TAG=0.5.11
+
+   docker compose --env-file $LOCALNET_DIR/compose.env \
+     --env-file $LOCALNET_DIR/env/common.env \
+     -f $LOCALNET_DIR/compose.yaml \
+     -f $LOCALNET_DIR/resource-constraints.yaml \
+     --profile sv --profile app-provider --profile app-user up -d
+   ```
+
+2. **Set MCP env** so the server uses LocalNet: `CANTON_USE_LOCALNET=true` and optionally `CANTON_VALIDATOR_URL=http://127.0.0.1:2903/api/validator` (see [Configuration](#configuration)).
+
+3. **Use the tools** in your MCP client:
+
+   ```
+   1. "Configure Canton: create a new party with display name test-wallet"  → Creates party, stores credentials
+   2. "Check my Canton balance"                                             → 0 CC until you receive funds
+   3. "List my Canton holdings" / "Transfer 10 CC to <recipient>" / "Show my Canton transactions"
+   ```
+
+Full details (MCP client config for any client, troubleshooting): [CANTON_LOCALNET.md](CANTON_LOCALNET.md).
 
 **DevNet** (no local stack; omit `CANTON_USE_LOCALNET` or set `false`).
 
