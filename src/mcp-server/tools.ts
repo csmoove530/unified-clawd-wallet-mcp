@@ -27,13 +27,16 @@ import {
   handleAuthCode,
 } from '../domains/handlers.js';
 
-// Canton modules
+// Canton (SDK-based)
 import {
-  CantonClient,
-  HoldingsManager,
-  TransferManager,
-  PartyManager,
-  CANTON_COIN,
+  getBalance,
+  getHoldings,
+  getPartyInfo,
+  transfer as cantonTransfer,
+  getTransactionHistory,
+  configure as cantonConfigure,
+  getLedgerApiUrl,
+  getValidatorUrl,
   type CantonConfig,
 } from '../canton/index.js';
 
@@ -725,14 +728,18 @@ export class MCPTools {
   // ============================================================================
 
   /**
-   * Get Canton configuration from loaded config, with defaults
+   * Get Canton configuration from loaded config, with defaults.
+   * When CANTON_USE_LOCALNET=true, defaults network to 'localnet'.
    */
   private static getCantonConfig(config: any): CantonConfig {
+    const useLocalNet = process.env.CANTON_USE_LOCALNET === 'true';
+    console.warn(`[Canton] Using ${useLocalNet ? 'LocalNet' : 'DevNet'} (CANTON_USE_LOCALNET=${process.env.CANTON_USE_LOCALNET ?? 'unset'})`);
+    const defaultNetwork = useLocalNet ? 'localnet' : 'devnet';
     return {
       enabled: config.canton?.enabled ?? false,
       partyId: config.canton?.partyId,
       displayName: config.canton?.displayName,
-      network: config.canton?.network ?? 'devnet',
+      network: config.canton?.network ?? defaultNetwork,
       validatorUrl: config.canton?.validatorUrl,
       ledgerApiUrl: config.canton?.ledgerApiUrl,
     };
@@ -740,29 +747,26 @@ export class MCPTools {
 
   /**
    * Tool: canton_check_balance
-   * Check Canton Coin (CC) balance on Canton Network
+   * Check Canton Coin (CC) balance on Canton Network (SDK / DevNet)
    */
   static async cantonCheckBalance(): Promise<any> {
     try {
       const config = await ConfigManager.loadConfig();
       const cantonConfig = this.getCantonConfig(config);
 
-      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+      if (!cantonConfig.enabled && !cantonConfig.partyId) {
         return {
           success: false,
-          error: 'Canton not configured. Use canton_configure to set up your party ID first.',
+          error: 'Canton not configured. Use canton_configure to create a party or set your party ID.',
         };
       }
 
-      const client = new CantonClient(cantonConfig);
-      await client.initialize();
-
-      const balance = await client.getBalance();
+      const balance = await getBalance(cantonConfig);
       const formattedBalance = this.formatCantonAmount(balance.balance, balance.decimals);
 
       return {
         success: true,
-        partyId: cantonConfig.partyId,
+        partyId: cantonConfig.partyId ?? '(new party)',
         network: cantonConfig.network,
         balance: {
           amount: balance.balance,
@@ -781,39 +785,33 @@ export class MCPTools {
 
   /**
    * Tool: canton_list_holdings
-   * List all CIP-56 token holdings
+   * List all CIP-56 token holdings (SDK / DevNet)
    */
   static async cantonListHoldings(): Promise<any> {
     try {
       const config = await ConfigManager.loadConfig();
       const cantonConfig = this.getCantonConfig(config);
 
-      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+      if (!cantonConfig.enabled && !cantonConfig.partyId) {
         return {
           success: false,
-          error: 'Canton not configured. Use canton_configure to set up your party ID first.',
+          error: 'Canton not configured. Use canton_configure to create a party or set your party ID.',
         };
       }
 
-      const holdingsManager = new HoldingsManager(cantonConfig);
-      const result = await holdingsManager.getHoldings();
-
-      if (!result.success) {
-        return result;
-      }
-
-      // Format holdings for display
-      const formattedHoldings = result.holdings.map((h) => ({
+      const holdings = await getHoldings(cantonConfig);
+      const partyId = cantonConfig.partyId ?? '(current party)';
+      const formattedHoldings = holdings.map((h) => ({
         ...h,
         formatted: `${this.formatCantonAmount(h.amount, 6)} ${h.symbol}`,
       }));
 
       return {
         success: true,
-        partyId: result.partyId,
-        network: result.network,
+        partyId,
+        network: cantonConfig.network,
         holdings: formattedHoldings,
-        totalHoldings: result.totalHoldings,
+        totalHoldings: holdings.length,
       };
     } catch (error) {
       return {
@@ -836,21 +834,15 @@ export class MCPTools {
         return {
           success: false,
           configured: false,
-          error: 'Canton not configured. Use canton_configure to set up your party ID.',
+          error: 'Canton not configured. Use canton_configure to create a party or set your party ID.',
         };
       }
 
-      const partyManager = new PartyManager(cantonConfig);
-      const result = await partyManager.getPartyInfo();
-
-      if (!result.success) {
-        return result;
-      }
-
+      const partyInfo = await getPartyInfo(cantonConfig);
       return {
         success: true,
         configured: true,
-        partyInfo: result.partyInfo,
+        partyInfo,
       };
     } catch (error) {
       return {
@@ -862,50 +854,48 @@ export class MCPTools {
 
   /**
    * Tool: canton_configure
-   * Configure Canton Network connection
+   * Configure Canton Network (DevNet). Create a new party or set partyId (optional privateKey for transfers).
    */
   static async cantonConfigure(args: {
-    partyId: string;
+    partyId?: string;
     displayName?: string;
-    authToken?: string;
+    privateKey?: string;
     validatorUrl?: string;
     ledgerApiUrl?: string;
   }): Promise<any> {
     try {
-      const { partyId, displayName, authToken, validatorUrl, ledgerApiUrl } = args;
-
-      // Load current config
+      const useLocalNet = process.env.CANTON_USE_LOCALNET === 'true';
+      console.warn(`[Canton] canton_configure: Using ${useLocalNet ? 'LocalNet' : 'DevNet'} (CANTON_USE_LOCALNET=${process.env.CANTON_USE_LOCALNET ?? 'unset'})`);
+      const { partyId, displayName, privateKey, validatorUrl, ledgerApiUrl } = args;
       const config = await ConfigManager.loadConfig();
-
-      // Create Canton config
       const cantonConfig: CantonConfig = {
-        enabled: false, // Will be enabled after successful configuration
-        partyId: undefined,
-        network: 'devnet',
+        enabled: false,
+        partyId,
+        displayName,
+        network: useLocalNet ? 'localnet' : 'devnet',
         ...config.canton,
       };
 
-      // Configure party
-      const partyManager = new PartyManager(cantonConfig);
-      const result = await partyManager.configure(partyId, {
+      const result = await cantonConfigure(cantonConfig, {
+        partyId,
         displayName,
-        authToken,
-        validatorUrl,
-        ledgerApiUrl,
+        privateKey,
       });
 
       if (!result.success) {
-        return result;
+        const errMsg = result.error ?? 'Canton configure failed (no error details).';
+        console.warn('[Canton] canton_configure failed:', errMsg);
+        return { success: false, error: errMsg };
       }
 
-      // Update config with Canton settings
+      const network = useLocalNet ? 'localnet' : 'devnet';
       config.canton = {
         enabled: true,
         partyId: result.partyId,
-        displayName: displayName || `Canton Party (${partyId.slice(0, 8)})`,
-        network: 'devnet',
-        validatorUrl: result.validatorUrl,
-        ledgerApiUrl: result.ledgerApiUrl,
+        displayName: result.displayName ?? displayName ?? (result.partyId ? `Party (${result.partyId.slice(0, 8)})` : undefined),
+        network,
+        validatorUrl: validatorUrl ?? getValidatorUrl(useLocalNet),
+        ledgerApiUrl: ledgerApiUrl ?? getLedgerApiUrl(useLocalNet),
       };
 
       await ConfigManager.saveConfig(config);
@@ -914,28 +904,31 @@ export class MCPTools {
         section: 'canton',
         action: 'configured',
         partyId: result.partyId,
-        network: 'devnet',
+        network,
       });
 
       return {
         success: true,
         partyId: result.partyId,
-        network: 'devnet',
-        validatorUrl: result.validatorUrl,
-        ledgerApiUrl: result.ledgerApiUrl,
+        network,
+        validatorUrl: config.canton.validatorUrl,
+        ledgerApiUrl: config.canton.ledgerApiUrl,
         message: result.message,
       };
     } catch (error) {
+      const err = error as Error;
+      const errMsg = (err?.message ?? String(error)) || 'Canton configure failed (unknown error).';
+      console.warn('[Canton] canton_configure error:', errMsg);
       return {
         success: false,
-        error: (error as Error).message,
+        error: errMsg,
       };
     }
   }
 
   /**
    * Tool: canton_transfer
-   * Transfer Canton tokens to another party
+   * Transfer Canton tokens to another party (SDK / DevNet)
    */
   static async cantonTransfer(args: {
     recipient: string;
@@ -944,29 +937,17 @@ export class MCPTools {
   }): Promise<any> {
     try {
       const { recipient, amount, tokenId } = args;
-
       const config = await ConfigManager.loadConfig();
       const cantonConfig = this.getCantonConfig(config);
 
-      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+      if (!cantonConfig.enabled && !cantonConfig.partyId) {
         return {
           success: false,
-          error: 'Canton not configured. Use canton_configure to set up your party ID first.',
+          error: 'Canton not configured. Use canton_configure to create a party or set your party ID first.',
         };
       }
 
-      const transferManager = new TransferManager(cantonConfig);
-
-      // If no tokenId specified, transfer Canton Coin
-      let result;
-      if (tokenId) {
-        await transferManager.initialize();
-        // Parse amount to base units (assuming 6 decimals)
-        const baseUnits = this.parseCantonAmount(amount, 6);
-        result = await transferManager.transfer(recipient, baseUnits, tokenId);
-      } else {
-        result = await transferManager.transferCC(recipient, amount);
-      }
+      const result = await cantonTransfer(cantonConfig, recipient, amount, tokenId);
 
       if (result.success) {
         await AuditLogger.logAction('payment_executed', {
@@ -983,7 +964,7 @@ export class MCPTools {
         success: result.success,
         transferId: result.transferId,
         recipient: result.recipient,
-        amount: amount,
+        amount,
         tokenSymbol: result.tokenSymbol,
         status: result.status,
         timestamp: result.timestamp,
@@ -1002,28 +983,26 @@ export class MCPTools {
 
   /**
    * Tool: canton_transaction_history
-   * View recent Canton transfer history
+   * View recent Canton transfer history (SDK / DevNet)
    */
   static async cantonTransactionHistory(limit: number = 10): Promise<any> {
     try {
       const config = await ConfigManager.loadConfig();
       const cantonConfig = this.getCantonConfig(config);
 
-      if (!cantonConfig.enabled || !cantonConfig.partyId) {
+      if (!cantonConfig.enabled && !cantonConfig.partyId) {
         return {
           success: false,
-          error: 'Canton not configured. Use canton_configure to set up your party ID first.',
+          error: 'Canton not configured. Use canton_configure to create a party or set your party ID first.',
         };
       }
 
-      const client = new CantonClient(cantonConfig);
-      await client.initialize();
-
-      const transactions = await client.getTransactionHistory(limit);
+      const transactions = await getTransactionHistory(cantonConfig, limit);
+      const partyId = cantonConfig.partyId ?? '(current party)';
 
       return {
         success: true,
-        partyId: cantonConfig.partyId,
+        partyId,
         network: cantonConfig.network,
         transactions: transactions.map((tx) => ({
           ...tx,

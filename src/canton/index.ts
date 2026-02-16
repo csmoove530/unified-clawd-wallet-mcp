@@ -1,18 +1,30 @@
 /**
- * Canton Network module exports
+ * Canton Network module (SDK-based)
  */
 
-export { CantonClient } from './client.js';
-export { HoldingsManager } from './holdings.js';
-export { TransferManager } from './transfer.js';
-export { PartyManager } from './party.js';
 export { CantonKeychain } from './keychain.js';
 export type { CantonCredentials } from './keychain.js';
 
+export {
+  getSDK,
+  ensureParty,
+  getBalance,
+  getHoldings,
+  getPartyInfo,
+  transfer,
+  getTransactionHistory,
+  configure,
+  getLedgerApiUrl,
+  getValidatorUrl,
+  getScanProxyUrl,
+} from './sdk-client.js';
+
+export type { CantonNetwork } from './config.js';
+export { getLedgerApiUrl as getCantonLedgerApiUrl, getValidatorUrl as getCantonValidatorUrl } from './config.js';
+
 export type {
-  CantonNetwork,
-  CantonPartyId,
   CantonConfig,
+  CantonPartyId,
   CantonHolding,
   CantonPartyInfo,
   CantonTransferInstruction,
@@ -24,7 +36,4 @@ export type {
   CantonHistoryResult,
 } from './types.js';
 
-export {
-  CANTON_DEVNET_ENDPOINTS,
-  CANTON_COIN,
-} from './types.js';
+export { CANTON_DEVNET_ENDPOINTS, CANTON_COIN } from './types.js';
