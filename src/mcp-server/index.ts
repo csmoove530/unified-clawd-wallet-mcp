@@ -239,9 +239,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'canton_configure':
         result = await MCPTools.cantonConfigure(
           args as {
-            partyId: string;
+            partyId?: string;
             displayName?: string;
-            authToken?: string;
+            privateKey?: string;
             validatorUrl?: string;
             ledgerApiUrl?: string;
           }

@@ -29,7 +29,7 @@ export interface ClawdConfig {
     enabled: boolean;
     partyId?: string;
     displayName?: string;
-    network: 'devnet' | 'testnet' | 'mainnet';
+    network: 'devnet' | 'testnet' | 'mainnet' | 'localnet';
     validatorUrl?: string;
     ledgerApiUrl?: string;
   };

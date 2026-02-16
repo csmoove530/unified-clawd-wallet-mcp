@@ -37,11 +37,9 @@ src/
 │   ├── backend-client.ts     # HTTP client for backend
 │   └── handlers.ts           # Domain tool handlers
 ├── canton/
-│   ├── client.ts             # Canton Wallet SDK wrapper
-│   ├── holdings.ts           # CIP-56 token holdings queries
-│   ├── transfer.ts           # CIP-56 transfer execution
-│   ├── party.ts              # Party management and info
-│   ├── keychain.ts           # Canton party credentials storage
+│   ├── config.ts             # DevNet/LocalNet URL configuration
+│   ├── sdk-client.ts         # @canton-network/wallet-sdk integration
+│   ├── keychain.ts           # Party credentials + Ed25519 key storage
 │   ├── types.ts              # Canton-specific types
 │   └── index.ts              # Module exports
 ├── referral/
@@ -131,20 +129,27 @@ Mock mode skips real registry calls, returns simulated responses.
 
 ### Canton Network Integration
 
-Canton operates differently from EVM chains:
-- Party identity is hosted by validator (not local keypair)
-- Uses CIP-56 compliant token holdings (UTXOs)
-- DevNet endpoints are public and use HMAC authentication
+Canton uses the official **@canton-network/wallet-sdk**. All Canton tools work on **LocalNet** or **DevNet**:
 
-Configure Canton with:
+- **LocalNet** (recommended for development): Set `CANTON_USE_LOCALNET=true`. Default URLs: Ledger `http://127.0.0.1:2975`, Validator `http://127.0.0.1:2903/api/validator`. Override with `CANTON_VALIDATOR_URL` if needed. Uses `localNetAuthDefault` (no extra credentials).
+- **DevNet**: Default when `CANTON_USE_LOCALNET` is not set. Requires valid DevNet credentials (run your own validator or obtain access from Digital Asset / SV).
+- Party can be **created** (new external party, keypair stored in keychain) or **imported** (partyId + optional privateKey).
+- CIP-56 token holdings (UTXOs); transfers are 2-step (create transfer, recipient accepts) unless preapproval is used.
+
+Configure Canton (e.g. on LocalNet):
 ```typescript
+// Set CANTON_USE_LOCALNET=true, then create new party (no partyId)
+await MCPTools.cantonConfigure({ displayName: 'My Wallet' });
+
+// Or set existing party (optional privateKey for signing transfers)
 await MCPTools.cantonConfigure({
   partyId: 'participant::namespace::identifier',
   displayName: 'My Canton Party',
+  privateKey: 'base64...',  // optional, for transfers
 });
 ```
 
-Canton credentials stored in OS keychain under `clawd-canton` service.
+Canton credentials (partyId, displayName, privateKey) stored in OS keychain under `clawd-canton` service.
 
 ### Audit Actions
 
@@ -167,11 +172,11 @@ CLAWD_TAP_REGISTRY=https://tap-registry.visa.com/v1
 CLAWD_TAP_MOCK_MODE=true
 CLAWD_TREASURY_PRIVATE_KEY=0x...  # For referral payouts
 
-# Canton Network (optional - can also configure via canton_configure tool)
-CANTON_PARTY_ID=participant::namespace::identifier
-CANTON_NETWORK=devnet
-CANTON_VALIDATOR_URL=https://canton-devnet.digitalasset.com/api/v1
-CANTON_LEDGER_URL=https://canton-devnet.digitalasset.com/ledger/v1
+# Canton Network: set CANTON_USE_LOCALNET=true for LocalNet (default ledger 127.0.0.1:2975, validator localhost:2000)
+CANTON_USE_LOCALNET=true
+# Optional overrides (for LocalNet custom ports or DevNet)
+# CANTON_LEDGER_API_URL=http://127.0.0.1:2975
+# CANTON_VALIDATOR_URL=http://localhost:2000
 ```
 
 ### Backend (Railway)
@@ -194,8 +199,8 @@ ENVIRONMENT=production
 | Domain tools fail | Backend unreachable | Check `CLAWD_BACKEND_URL` |
 | TAP errors | No mock mode | Set `CLAWD_TAP_MOCK_MODE=true` |
 | Referral fails | No treasury | Set `CLAWD_TREASURY_PRIVATE_KEY` |
-| Canton not configured | Party ID not set | Run `canton_configure` with party ID |
-| Canton connection failed | DevNet unavailable | Uses mock mode automatically on DevNet |
+| Canton not configured | No party | Run `canton_configure` (omit partyId to create a new party) |
+| Canton connection failed | DevNet/LocalNet unreachable | See **CANTON_LOCALNET.md**: set `CANTON_USE_LOCALNET=true` in MCP env, start LocalNet, restart MCP |
 
 ## Testing Changes
 

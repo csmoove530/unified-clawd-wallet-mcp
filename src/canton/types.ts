@@ -5,7 +5,7 @@
 /**
  * Canton Network configuration
  */
-export type CantonNetwork = 'devnet' | 'testnet' | 'mainnet';
+export type CantonNetwork = 'devnet' | 'testnet' | 'mainnet' | 'localnet';
 
 /**
  * Canton party identifier

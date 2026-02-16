@@ -480,7 +480,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'canton_check_balance',
     description:
-      'Check Canton Coin (CC) balance on Canton Network DevNet. ' +
+      'Check Canton Coin (CC) balance on Canton Network (LocalNet when CANTON_USE_LOCALNET=true, else DevNet). ' +
       'Returns the configured party\'s CC balance.',
     inputSchema: {
       type: 'object',
@@ -509,39 +509,38 @@ export const TOOLS: Tool[] = [
   {
     name: 'canton_configure',
     description:
-      'Configure Canton Network connection with your party ID. ' +
-      'This connects your wallet to Canton DevNet for token operations.',
+      'Configure Canton Network. Use LocalNet when CANTON_USE_LOCALNET=true (default URLs: ledger 127.0.0.1:2975, validator localhost:2000). ' +
+      'Omit partyId to create a new external party; or provide partyId (and optional privateKey for signing transfers).',
     inputSchema: {
       type: 'object',
       properties: {
         partyId: {
           type: 'string',
-          description: 'Your Canton party identifier (e.g., "participant::namespace::identifier")',
+          description: 'Existing Canton party ID. Omit to create a new party.',
         },
         displayName: {
           type: 'string',
-          description: 'Optional display name for this party',
+          description: 'Display name for the party (used when creating a new party)',
         },
-        authToken: {
+        privateKey: {
           type: 'string',
-          description: 'Optional authentication token for the validator',
+          description: 'Base64 Ed25519 private key for signing (required for transfers when using an existing party)',
         },
         validatorUrl: {
           type: 'string',
-          description: 'Optional custom validator API URL (uses DevNet default if not specified)',
+          description: 'Optional custom validator API URL (overrides DevNet/LocalNet default)',
         },
         ledgerApiUrl: {
           type: 'string',
-          description: 'Optional custom Ledger API URL (uses DevNet default if not specified)',
+          description: 'Optional custom Ledger API URL (overrides DevNet/LocalNet default)',
         },
       },
-      required: ['partyId'],
     },
   },
   {
     name: 'canton_transfer',
     description:
-      'Transfer Canton tokens to another party on DevNet. ' +
+      'Transfer Canton tokens to another party (LocalNet when CANTON_USE_LOCALNET=true, else DevNet). ' +
       'Supports Canton Coin (CC) and other CIP-56 compliant tokens.',
     inputSchema: {
       type: 'object',

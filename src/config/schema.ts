@@ -27,7 +27,7 @@ export const CantonConfigSchema = z.object({
   enabled: z.boolean().default(false),
   partyId: z.string().optional(),
   displayName: z.string().optional(),
-  network: z.enum(['devnet', 'testnet', 'mainnet']).default('devnet'),
+  network: z.enum(['devnet', 'testnet', 'mainnet', 'localnet']).default('devnet'),
   validatorUrl: z.string().url().optional(),
   ledgerApiUrl: z.string().url().optional()
 });
