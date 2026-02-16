@@ -31,7 +31,7 @@ Initialization is **idempotent**: running `clawd init` again does nothing unless
 
 ### 3. Add to Claude Code
 
-Add to `~/.claude.json` (or Cursor: `.cursor/mcp.json`):
+Add to `~/.claude.json`:
 
 ```json
 {
@@ -48,7 +48,7 @@ Add to `~/.claude.json` (or Cursor: `.cursor/mcp.json`):
 }
 ```
 
-Use the real path to `dist/mcp-server/index.js`. For **Canton**: to run tools **locally**, see [CANTON_LOCALNET.md](CANTON_LOCALNET.md); for **DevNet** (or other non-local environments), no extra setup—just use the Canton tools in chat.
+Use the real path to `dist/mcp-server/index.js`. See [Canton Network](#canton-network) below for Canton setup.
 
 ### 4. Restart Claude Code and Try It
 
@@ -171,102 +171,6 @@ Returns:
 }
 ```
 
-### Canton Network (create party, balance, holdings, transfer)
-
-**Setup by environment:** For **local** (Splice LocalNet), see **[CANTON_LOCALNET.md](CANTON_LOCALNET.md)**. For **other environments** (e.g. DevNet), no extra setup: omit `CANTON_USE_LOCALNET` or set it to `false` in MCP env, then use the steps below.
-
-**1. Create a party (required first)**
-
-```
-You: "Configure Canton: create a new party with display name test-wallet"
-```
-
-Returns:
-```json
-{
-  "success": true,
-  "partyId": "test-wallet::12205301d04660f78d0ef753b4a60a8ea4d2babf62ac1a81fe24eefa00b381412220",
-  "network": "localnet",
-  "validatorUrl": "<validator API base, e.g. http://127.0.0.1:2903/api/validator (local) or https://canton-devnet.digitalasset.com/api/v1 (DevNet)>",
-  "ledgerApiUrl": "<ledger API URL, e.g. http://127.0.0.1:2975 (local) or https://canton-devnet.digitalasset.com/ledger/v1 (DevNet)>",
-  "message": "Created new Canton party: test-wallet::..."
-}
-```
-
-**2. Check Canton balance**
-
-```
-You: "Check my Canton balance"   or   "canton_check_balance"
-```
-
-Returns:
-```json
-{
-  "success": true,
-  "partyId": "test-wallet::12205301d04660f78d0ef753b4a60a8ea4d2babf62ac1a81fe24eefa00b381412220",
-  "network": "localnet",
-  "balance": {
-    "amount": "0",
-    "symbol": "CC",
-    "decimals": 6,
-    "formatted": "0 CC"
-  }
-}
-```
-
-**3. List token holdings**
-
-```
-You: "List my Canton holdings"   or   "canton_list_holdings"
-```
-
-Returns:
-```json
-{
-  "success": true,
-  "partyId": "test-wallet::...",
-  "network": "localnet",
-  "holdings": [],
-  "totalHoldings": 0
-}
-```
-
-**4. Transfer Canton Coin**
-
-```
-You: "Transfer 10 CC to recipient::1220..."   or   "canton_transfer 10 to <recipient-party-id>"
-```
-
-Requires **recipient** (full party ID) and **amount**. Returns:
-```json
-{
-  "success": true,
-  "transferId": "command-id-uuid",
-  "recipient": "recipient::1220...",
-  "amount": "10",
-  "tokenSymbol": "CC",
-  "status": "confirmed",
-  "timestamp": 1739...
-}
-```
-
-**5. Transaction history**
-
-```
-You: "Show my Canton transactions"   or   "canton_transaction_history"
-```
-
-Returns:
-```json
-{
-  "success": true,
-  "partyId": "test-wallet::...",
-  "network": "localnet",
-  "transactions": [],
-  "count": 0
-}
-```
-
 ---
 
 ## All 27 Tools
@@ -312,16 +216,16 @@ Returns:
 
 ### Canton Network Tools (6)
 
-**Local:** See **[CANTON_LOCALNET.md](CANTON_LOCALNET.md)**. **Other environments (e.g. DevNet):** no extra setup—see [Canton Network Setup](#canton-network-setup) below.
+See [Canton Network](#canton-network) for setup and usage.
 
 | Tool | Description | Example |
 |------|-------------|---------|
-| `canton_configure` | Create a new party or set existing party ID | `"Configure Canton: create a new party with display name test-wallet"` or `"canton_configure &lt;partyId&gt;"` |
-| `canton_check_balance` | Check Canton Coin (CC) balance | `"Check my Canton balance"` or `"canton_check_balance"` |
-| `canton_list_holdings` | List all CIP-56 token holdings (UTXOs) | `"List my Canton holdings"` or `"canton_list_holdings"` |
-| `canton_get_party_info` | Get party ID, validator URL, network | `"Show my Canton party info"` or `"canton_get_party_info"` |
-| `canton_transfer` | Send CC to another party (needs recipient + amount) | `"Transfer 10 CC to &lt;recipient-party-id&gt;"` or `"canton_transfer"` (then provide recipient and amount) |
-| `canton_transaction_history` | View send/receive history | `"Show my Canton transactions"` or `"canton_transaction_history"` |
+| `canton_configure` | Create a new party or set existing party ID | `"Configure Canton: create a new party with display name test-wallet"` |
+| `canton_check_balance` | Check Canton Coin (CC) balance | `"Check my Canton balance"` |
+| `canton_list_holdings` | List all CIP-56 token holdings (UTXOs) | `"List my Canton holdings"` |
+| `canton_get_party_info` | Get party ID, validator URL, network | `"Show my Canton party info"` |
+| `canton_transfer` | Send CC to another party (needs recipient + amount) | `"Transfer 10 CC to &lt;recipient-party-id&gt;"` |
+| `canton_transaction_history` | View send/receive history | `"Show my Canton transactions"` |
 
 ---
 
@@ -355,16 +259,81 @@ Returns:
 3. "Show my recent transactions"         → Review payments
 ```
 
-### Canton Network Setup
+---
 
-- **Local (Splice LocalNet):** See **[CANTON_LOCALNET.md](CANTON_LOCALNET.md)** for Docker, MCP env, and troubleshooting.
+## Canton Network
 
-- **Other environments (e.g. DevNet):** No local stack or Canton env required. In your MCP config, omit `CANTON_USE_LOCALNET` or set it to `"false"`. Then:
+Canton Network tools let you create parties, check balances, list token holdings, transfer Canton Coin (CC), and view transaction history.
 
-  ```
-  1. "Configure Canton: create a new party with display name my-wallet"   → Creates party on DevNet
-  2. "Check my Canton balance" / "List my Canton holdings" / "canton_transfer" / "canton_transaction_history" as needed
-  ```
+### Setup
+
+- **Local (Splice LocalNet):** See **[CANTON_LOCALNET.md](CANTON_LOCALNET.md)** for Docker setup, MCP env configuration, and troubleshooting.
+- **DevNet (or other non-local):** No extra setup. Omit the Canton env vars from your MCP config; the server uses public DevNet endpoints by default.
+
+Canton env vars (only needed for LocalNet or custom deployments):
+
+```bash
+CANTON_USE_LOCALNET=true                                    # Use local Splice; omit for DevNet
+CANTON_VALIDATOR_URL=http://127.0.0.1:2903/api/validator    # LocalNet default
+CANTON_LEDGER_API_URL=http://127.0.0.1:2975                 # LocalNet default
+```
+
+### Usage
+
+**1. Create a party (required first)**
+
+```
+You: "Configure Canton: create a new party with display name test-wallet"
+```
+
+Returns:
+```json
+{
+  "success": true,
+  "partyId": "test-wallet::12205301d046...",
+  "network": "localnet",
+  "validatorUrl": "<validator API base, e.g. http://127.0.0.1:2903/api/validator (local) or https://canton-devnet.digitalasset.com/api/v1 (DevNet)>",
+  "ledgerApiUrl": "<ledger API URL, e.g. http://127.0.0.1:2975 (local) or https://canton-devnet.digitalasset.com/ledger/v1 (DevNet)>"
+}
+```
+
+**2. Check balance**
+
+```
+You: "Check my Canton balance"
+```
+
+**3. List holdings**
+
+```
+You: "List my Canton holdings"
+```
+
+**4. Transfer**
+
+```
+You: "Transfer 10 CC to <recipient-party-id>"
+```
+
+Requires **recipient** (full party ID) and **amount**.
+
+**5. Transaction history**
+
+```
+You: "Show my Canton transactions"
+```
+
+### Errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Canton not configured` | No party yet | Run `canton_configure` with `displayName` to create a party, or with `partyId` to use existing |
+| `The requested resource could not be found` | Validator URL wrong | **Local:** See [CANTON_LOCALNET.md](CANTON_LOCALNET.md). **Other:** Set `CANTON_VALIDATOR_URL` in MCP env. |
+| `Unexpected token '<', "<!DOCTYPE "...` | Hitting HTML instead of API | Validator URL must be the API base, not the UI port (e.g. 2000). |
+| `fetch failed` / `ECONNREFUSED` | Canton not running or wrong URL | **Local:** Start Splice LocalNet. **Other:** Check validator and ledger URLs. |
+| `Invalid recipient party ID format` | Bad party ID | Use full party ID (e.g. `name::1220...`). |
+| `Insufficient balance for transfer` | Not enough CC | Check balance with `canton_check_balance`. |
+| `No Canton signing key` | No private key for transfers | Create party with `canton_configure` (no partyId) so key is stored, or configure with `partyId` + `privateKey`. |
 
 ---
 
@@ -407,20 +376,6 @@ Returns:
 | `Not authorized` | Wallet doesn't own domain | Use wallet that purchased domain |
 | `Backend connection failed` | Backend unreachable | Check `CLAWD_BACKEND_URL` |
 
-### Canton Errors
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Canton not configured` | No party yet | Run **canton_configure** with `displayName` to create a party, or with `partyId` to use existing |
-| `The requested resource could not be found` | Validator URL wrong or LocalNet not exposing API | **Local:** See [CANTON_LOCALNET.md](CANTON_LOCALNET.md). **Other:** Set `CANTON_VALIDATOR_URL` in MCP env if using custom validator. |
-| `Unexpected token '<', "<!DOCTYPE "...` | Request hit HTML (e.g. UI) instead of API | **Local:** See [CANTON_LOCALNET.md](CANTON_LOCALNET.md). Use the validator API base URL, not the UI port. |
-| `fetch failed` / `ECONNREFUSED` | LocalNet not running or wrong host/port | **Local:** See [CANTON_LOCALNET.md](CANTON_LOCALNET.md). **Other:** Check validator and ledger URLs are reachable. |
-| `Invalid recipient party ID format` | Bad party ID | Use full party ID (e.g. `name::1220...`). |
-| `Insufficient balance for transfer` | Not enough CC | Check balance with `canton_check_balance`; receive CC before sending. |
-| `No Canton signing key` | Transfers need the party’s private key | Create party with **canton_configure** (no partyId) so key is stored, or configure with `partyId` + `privateKey`. |
-
----
-
 ## Configuration
 
 ### Environment Variables
@@ -434,8 +389,6 @@ CLAWD_BACKEND_URL=https://clawd-domain-backend-production.up.railway.app
 # TAP configuration
 CLAWD_TAP_REGISTRY=https://tap-registry.visa.com/v1  # Production
 CLAWD_TAP_MOCK_MODE=true                              # Demo mode (no real registry)
-
-# Canton: local setup is in CANTON_LOCALNET.md; for DevNet/other, omit CANTON_USE_LOCALNET or set false
 
 # Referral system (operators only)
 CLAWD_TREASURY_PRIVATE_KEY=0x...                      # Treasury wallet for payouts
@@ -469,7 +422,7 @@ ENVIRONMENT=production
 }
 ```
 
-**Canton:** For **local** (Splice), see [CANTON_LOCALNET.md](CANTON_LOCALNET.md). For **other environments** (e.g. DevNet), omit `CANTON_USE_LOCALNET` or set `"false"`; no other Canton env needed.
+For Canton env vars, see [Canton Network](#canton-network).
 
 ---
 
@@ -585,16 +538,6 @@ Referral redemption requires a treasury wallet. For operators:
 ```bash
 export CLAWD_TREASURY_PRIVATE_KEY=0x...
 ```
-
-### Canton: "The requested resource could not be found", "Unexpected token '<'", or "fetch failed"
-
-**Local:** See [CANTON_LOCALNET.md](CANTON_LOCALNET.md) for setup and troubleshooting. **Other:** Create a party first (*"Configure Canton: create a new party with display name test-wallet"*); ensure validator and ledger URLs are reachable.
-
----
-
-## Further reading
-
-- **[CANTON_LOCALNET.md](CANTON_LOCALNET.md)** — Run Canton tools (configure, balance, transfer) against a local Splice network: MCP env for any client (Claude Code, Cursor), docker compose steps, and fixes for common errors.
 
 ---
 
