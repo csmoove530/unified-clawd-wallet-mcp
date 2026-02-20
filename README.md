@@ -185,6 +185,13 @@ Returns:
 | `x402_transaction_history` | View recent payments | `"Show my last 5 transactions"` |
 | `x402_discover_services` | Find x402 services | `"Find AI services I can pay for"` |
 
+### Spending Controls (2)
+
+| Tool | Description | Example |
+|------|-------------|---------|
+| `x402_get_spending_controls` | View current spend limits | `"Show my spending limits"` |
+| `x402_update_spending_controls` | Update per-transaction and daily limits | `"Set my daily limit to $100"` |
+
 ### Referral Tools (1)
 
 | Tool | Description | Example |
@@ -491,6 +498,18 @@ python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 uvicorn src.main:app --port 8402 --reload
 ```
+
+### After Making Code Changes
+
+Any time you modify TypeScript source files, you must rebuild before the changes take effect:
+
+```bash
+npm run build
+```
+
+Then **restart your MCP client** (e.g. Claude Code) so it picks up the new server binary.
+
+> **Tip:** Use `npm run dev` (watch mode) during development to rebuild automatically on save. You still need to restart the MCP client to load the new binary.
 
 ---
 
